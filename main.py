@@ -233,14 +233,20 @@ old_coordinates = np.array([result['X'], result['Y'], result['Z']]).T
 def load_material_properties(json_file, material):
     """
     Load material properties from a JSON file for a specific material.
-    If Shear_modulus, First_Lame_parameter, Tangent_modulus, Linear_isotropic_hardening, or Nonlinear_Ludwik_parameter is not provided,
-    they are calculated using the relationships:
-    Shear_modulus: G = E / (2 * (1 + ν))
-    First_Lame_parameter: λ = E * ν / ((1 + ν) * (1 - 2 * ν))
-    Tangent_modulus: Et = E / 100
-    Linear_isotropic_hardening: H = E * Et / (E - Et)
-    Nonlinear_Ludwik_parameter: nlin = 0.9 * H
-    where E is Young's modulus, ν is Poisson's ratio, Et is the Tangent modulus, and H is the Linear isotropic hardening.
+    If Shear_modulus, First_Lame_parameter, Tangent_modulus, Linear_isotropic_hardening,
+    or Nonlinear_Ludwik_parameter is not provided, they are calculated using the following relationships:
+
+    - Shear_modulus (G): G = E / (2 * (1 + ν)) (Equation 1)
+    - First_Lame_parameter (λ): λ = E * ν / ((1 + ν) * (1 - 2 * ν)) (Equation 2)
+    - Tangent_modulus (Et): Et = E / 100 (Equation 3)
+    - Linear_isotropic_hardening (H): H = E * Et / (E - Et) (Equation 4)
+    - Nonlinear_Ludwik_parameter (nlin): nlin = 0.9 * H (Equation 5)
+
+    Where:
+    E is Young's modulus,
+    ν is Poisson's ratio,
+    Et is the Tangent modulus, and
+    H is the Linear isotropic hardening.
 
     Parameters:
     json_file (str): Path to the JSON file to be loaded.
@@ -249,9 +255,11 @@ def load_material_properties(json_file, material):
     Returns:
     dict: A dictionary containing the loaded material properties.
     """
+    # Load and validate schema
     with open('material_properties.schema') as f:
         schema = json.load(f)
 
+    # Load JSON file
     with open(json_file) as file:
         all_materials = json.load(file)
 
@@ -266,29 +274,27 @@ def load_material_properties(json_file, material):
         print(f"Material {material} not found in the JSON file.")
         return
 
+    # Extract specific material properties
     material_properties = all_materials[material]["properties"]
 
+    # Retrieve or calculate each property
     E = material_properties.get("Youngs_modulus")
     nu = material_properties.get("Poissons_ratio")
 
-    if "Shear_modulus" not in material_properties and E is not None and nu is not None:
-        material_properties["Shear_modulus"] = E / (2.0 * (1 + nu))
+    if E is not None and nu is not None:
+        material_properties.setdefault("Shear_modulus", E / (2.0 * (1 + nu)))
+        material_properties.setdefault("First_Lame_parameter", E * nu / ((1 + nu) * (1 - 2 * nu)))
 
-    if "First_Lame_parameter" not in material_properties and E is not None and nu is not None:
-        material_properties["First_Lame_parameter"] = E * nu / ((1 + nu) * (1 - 2 * nu))
-
-    if "Tangent_modulus" not in material_properties and E is not None:
-        material_properties["Tangent_modulus"] = E / 100.0
+    if E is not None:
+        material_properties.setdefault("Tangent_modulus", E / 100.0)
 
     Et = material_properties.get("Tangent_modulus")
-
-    if "Linear_isotropic_hardening" not in material_properties and E is not None and Et is not None:
-        material_properties["Linear_isotropic_hardening"] = E * Et / (E - Et)
+    if E is not None and Et is not None:
+        material_properties.setdefault("Linear_isotropic_hardening", E * Et / (E - Et))
 
     H = material_properties.get("Linear_isotropic_hardening")
-
-    if "Nonlinear_Ludwik_parameter" not in material_properties and H is not None:
-        material_properties["Nonlinear_Ludwik_parameter"] = 0.9 * H
+    if H is not None:
+        material_properties.setdefault("Nonlinear_Ludwik_parameter", 0.9 * H)
 
     return material_properties
 
