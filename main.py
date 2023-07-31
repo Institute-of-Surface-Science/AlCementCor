@@ -345,15 +345,16 @@ lmbda_outer = get_material_property(properties_ceramic, "First_Lame_parameter")
 C_Et_outer = get_material_property(properties_ceramic, "Tangent_modulus")
 C_linear_isotropic_hardening_outer = get_material_property(properties_ceramic, "Linear_isotropic_hardening")
 
-######################################################
 
-two_layers = True
+# Load the configuration file
+with open('simulation_config.json') as json_file:
+    config = json.load(json_file)
 
-# Endpoint of time integration
-# endTime = 117000
-endTime = 175000
-Nincr = 10000  # linear
-# Nincr = 1000 #Ludwig
+two_layers = config['simulation_parameters']['use_two_layers']
+endTime = config['simulation_parameters']['time_integration_endpoint']
+no_of_timesteps = config['simulation_parameters']['number_of_timesteps']
+selected_hardening_model = config['simulation_parameters']['selected_hardening_model']
+
 
 # Geometry of the domain
 ##########################################
@@ -667,7 +668,7 @@ P0 = fe.FunctionSpace(mesh, "DG", 0)
 p_avg = fe.Function(P0, name="Plastic strain")
 
 Nitermax, tol = 100, 1e-8  # parameters of the Newton-Raphson procedure
-time_step = endTime / (Nincr)
+time_step = endTime / (no_of_timesteps)
 
 
 # assign local values to the layers

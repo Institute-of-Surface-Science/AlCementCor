@@ -1,0 +1,8 @@
+{
+    "simulation_parameters": {
+        "use_two_layers": true,
+        "time_integration_endpoint": 175000,
+        "number_of_timesteps": 10000,
+        "selected_hardening_model": "linear"
+    }
+}
