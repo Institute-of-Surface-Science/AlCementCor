@@ -347,7 +347,7 @@ C_linear_isotropic_hardening_outer = get_material_property(properties_ceramic, "
 
 ######################################################
 
-load_input = True
+two_layers = True
 
 # Endpoint of time integration
 # endTime = 117000
@@ -363,7 +363,7 @@ l_inner_y = 90.0  # mm
 l_outer_x = 2.0  # mm
 l_outer_y = 0.0  # mm
 
-if load_input:
+if two_layers:
     l_inner_x = thickness_al  # mm
     l_inner_y = length  # mm
 
@@ -429,7 +429,7 @@ displacement_conditions = {
 bc1 = fe.DirichletBC(V, fe.Constant((0.0, 0.0)), boundary_conditions['bottom'])
 bc1_i = bc1
 
-if load_input:
+if two_layers:
     bc1 = fe.DirichletBC(V.sub(1), displacement_conditions['bottom'], boundary_conditions['bottom'])
     # reset displacement to 0
     bc1_i = fe.DirichletBC(V.sub(1), 0, boundary_conditions['bottom'])
@@ -749,7 +749,7 @@ while time < endTime:
 
     # update the displacement boundary
     displacement_conditions['top'].t = time_step
-    if load_input:
+    if two_layers:
         displacement_conditions['bottom'].t = time_step
 
     # assemble system
