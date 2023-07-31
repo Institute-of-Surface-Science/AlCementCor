@@ -2,8 +2,6 @@
 import ufl
 import fenics as fe
 import json
-# import matplotlib
-# matplotlib.use('pdf')
 import matplotlib.pyplot as plt
 import numpy as np
 import warnings
@@ -14,30 +12,21 @@ fe.parameters["form_compiler"]["representation"] = 'quadrature'
 warnings.simplefilter("once", QuadratureRepresentationDeprecationWarning)
 
 # import the json file
-######################################################
-f = open('CementOutput.json')
-data = json.load(f)
+with open('CementOutput.json') as f:
+    data = json.load(f)
 
-nodes = list((data["nodes"]).keys())
+nodes = list(data["nodes"].keys())
 node_data = data["nodes"]
 no_nodes = len(node_data)
-no_time_steps = len((node_data[nodes[0]])["X"])
+no_time_steps = len(node_data[nodes[0]]["X"])
 
-i = 0
 # X[point, time]
-X = np.zeros((no_nodes, no_time_steps))
-Y = np.zeros((no_nodes, no_time_steps))
-Z = np.zeros((no_nodes, no_time_steps))
-# XY[point, time, dim]
-XY = []
-XYZ = []
-for node_id in nodes:
-    X[i, :] = node_data[node_id]["X"]
-    Y[i, :] = node_data[node_id]["Y"]
-    Z[i, :] = node_data[node_id]["Z"]
-    XY += [[X[i, 0], Y[i, 0]]]
-    XYZ += [[X[i, 0], Y[i, 0], Z[i, 0]]]
-    i += 1
+X = np.array([node_data[node_id]["X"] for node_id in nodes])
+Y = np.array([node_data[node_id]["Y"] for node_id in nodes])
+Z = np.array([node_data[node_id]["Z"] for node_id in nodes])
+
+XY = np.column_stack((X[:, 0], Y[:, 0]))
+XYZ = np.column_stack((X[:, 0], Y[:, 0], Z[:, 0]))
 
 # determine thickness and outside and inside points
 kmeans = KMeans(n_clusters=2, random_state=0).fit(XY)
@@ -46,31 +35,19 @@ labels = kmeans.labels_
 print("aluminium layer thickness:", thickness_al)
 
 # sort points by inside '0'  and outside '1'
-point_cluster = [[] for _ in range(2)]
-for i, label in enumerate(labels):
-    point_cluster[label].append(XYZ[i])
-p_arr = [np.array(points) for points in point_cluster]
+point_cluster = [XYZ[labels == i] for i in range(2)]
 
 # determine length
 length = np.abs(np.max(X[:, 0]) - np.min(X[:, 0]))
 print("area length:", length)
 
-# crit_area_0 = time_steps_data[list(time_steps)[0]]
-# print(X[:, 0])
-
-# plt.scatter(X[:, 0], Y[:, 0])
-# plt.scatter(X[:, 50], Y[:, 50])
-# plt.savefig("coord_0.png")
-
 fig = plt.figure()
 ax = fig.add_subplot(projection='3d')
-ax.scatter(X[:, 0], Y[:, 0], Z[:, 0], marker='o', c=labels.astype(float))
-# ax.scatter(X[:, 50], Y[:, 50], Z[:, 50])
+ax.scatter(*XYZ.T, marker='o', c=labels.astype(float))
 ax.set_xlabel('X')
 ax.set_ylabel('Y')
 ax.set_zlabel('Z')
 plt.savefig("coord3d_0.png")
-# exit()
 
 # crit_area_0_y = np.array(crit_area_0["Y"])
 # length = abs(crit_area_0_y) - min(abs(crit_area_0_y))
