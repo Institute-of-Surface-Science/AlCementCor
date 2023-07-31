@@ -254,13 +254,19 @@ def load_material_properties(json_file, material):
 
     with open(json_file) as file:
         all_materials = json.load(file)
-        material_properties = all_materials[material]["properties"]
 
     # Validate the JSON file against the schema
     try:
         validate(instance=all_materials, schema=schema)
     except ValidationError as e:
         print(f"Validation error: {e.message}")
+
+    # Check if the material is in the JSON file
+    if material not in all_materials:
+        print(f"Material {material} not found in the JSON file.")
+        return
+
+    material_properties = all_materials[material]["properties"]
 
     E = material_properties.get("Youngs_modulus")
     nu = material_properties.get("Poissons_ratio")
