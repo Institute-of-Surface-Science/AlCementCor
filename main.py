@@ -1,4 +1,3 @@
-# Elasto-plastic analysis of a 2D von Mises material
 import ufl
 import fenics as fe
 import json
@@ -6,89 +5,228 @@ import matplotlib.pyplot as plt
 import numpy as np
 import warnings
 from sklearn.cluster import KMeans
+from scipy.interpolate import griddata, RegularGridInterpolator, interp1d
 from ffc.quadrature.deprecation import QuadratureRepresentationDeprecationWarning
 
 fe.parameters["form_compiler"]["representation"] = 'quadrature'
 warnings.simplefilter("once", QuadratureRepresentationDeprecationWarning)
 
-# import the json file
-with open('CementOutput.json') as f:
-    data = json.load(f)
 
-nodes = list(data["nodes"].keys())
-node_data = data["nodes"]
-no_nodes = len(node_data)
-no_time_steps = len(node_data[nodes[0]]["X"])
+def process_json(filename, plot=False):
+    """
+    Load a JSON file containing node information, calculate the thickness and length of the area,
+    and optionally plot the nodes in 3D.
 
-# X[point, time]
-X = np.array([node_data[node_id]["X"] for node_id in nodes])
-Y = np.array([node_data[node_id]["Y"] for node_id in nodes])
-Z = np.array([node_data[node_id]["Z"] for node_id in nodes])
+    Parameters:
+    filename (str): Path to the JSON file to be processed.
+    plot (bool): Whether to plot the node data in 3D. Defaults to False.
 
-XY = np.column_stack((X[:, 0], Y[:, 0]))
-XYZ = np.column_stack((X[:, 0], Y[:, 0], Z[:, 0]))
+    Returns:
+    dict: A dictionary containing the calculated thickness, length, and displacements,
+          along with the extracted LE, S and T values.
+    """
+    with open(filename) as f:
+        data = json.load(f)
 
-# determine thickness and outside and inside points
-kmeans = KMeans(n_clusters=2, random_state=0).fit(XY)
-thickness_al = np.abs(kmeans.cluster_centers_[0][1] - kmeans.cluster_centers_[1][1])
-labels = kmeans.labels_
-print("aluminium layer thickness:", thickness_al)
+    # Extract node data
+    node_data = data["nodes"]
 
-# sort points by inside '0'  and outside '1'
-point_cluster = [XYZ[labels == i] for i in range(2)]
+    # Get X, Y, and Z coordinates of all nodes for all timesteps
+    x_coordinates = [node_data[node_id]["X"] for node_id in node_data.keys()]
+    y_coordinates = [node_data[node_id]["Y"] for node_id in node_data.keys()]
+    z_coordinates = [node_data[node_id]["Z"] for node_id in node_data.keys()]
 
-# determine length
-length = np.abs(np.max(X[:, 0]) - np.min(X[:, 0]))
-print("area length:", length)
+    # Calculate displacement from initial position for each node
+    displacement = [np.sqrt((x[0] - x[-1]) ** 2 + (y[0] - y[-1]) ** 2 + (z[0] - z[-1]) ** 2)
+                    for x, y, z in zip(x_coordinates, y_coordinates, z_coordinates)]
 
-fig = plt.figure()
-ax = fig.add_subplot(projection='3d')
-ax.scatter(*XYZ.T, marker='o', c=labels.astype(float))
-ax.set_xlabel('X')
-ax.set_ylabel('Y')
-ax.set_zlabel('Z')
-plt.savefig("coord3d_0.png")
+    # Get coordinates for the first timestep for further calculations
+    x_coordinates_0 = [x[0] for x in x_coordinates]
+    y_coordinates_0 = [y[0] for y in y_coordinates]
+    z_coordinates_0 = [z[0] for z in z_coordinates]
 
-# crit_area_0_y = np.array(crit_area_0["Y"])
-# length = abs(crit_area_0_y) - min(abs(crit_area_0_y))
+    # Combine coordinates into a single array
+    coordinates_0 = np.column_stack([x_coordinates_0, y_coordinates_0, z_coordinates_0])
 
-# # logarithmic strain
-# LE11 = np.array(crit_area_0["LE11"])
-# LE12 = np.array(crit_area_0["LE12"])
-# LE23 = np.array(crit_area_0["LE23"])
-# LE22 = np.array(crit_area_0["LE22"])
-# LE31 = np.array(crit_area_0["LE31"])
-# LE33 = np.array(crit_area_0["LE33"])
+    # Perform clustering to differentiate between inside and outside points
+    kmeans = KMeans(n_clusters=2, random_state=0).fit(coordinates_0[:, :2])
+    labels = kmeans.labels_
 
-# # stress
-# S11  = np.array(crit_area_0["S11"])
-# S12  = np.array(crit_area_0["S12"])
-# S22  = np.array(crit_area_0["S22"])
-# S23  = np.array(crit_area_0["S23"])
-# S31  = np.array(crit_area_0["S31"])
-# S33  = np.array(crit_area_0["S33"])
+    # Calculate the thickness of the aluminium layer
+    y_coordinates_centroids = kmeans.cluster_centers_[:, 1]
+    thickness_aluminium = np.abs(np.diff(y_coordinates_centroids))
+    print(f"Aluminium layer thickness: {thickness_aluminium[0]}")
 
-# # traction
-# T1   = np.array(crit_area_0["T1"])
-# T2   = np.array(crit_area_0["T2"])
-# T3   = np.array(crit_area_0["T3"])
+    # Calculate the length of the area
+    length = np.ptp(x_coordinates_0)
+    print(f"Area length: {length}")
 
-# interp_length = np.linspace(0, max(length), num=100)
-# interp_LE11 = np.interp(interp_length, length, LE11)
-# interp_LE12 = np.interp(interp_length, length, LE12)
-# interp_LE22 = np.interp(interp_length, length, LE22)
-# interp_LE23 = np.interp(interp_length, length, LE23)
-# interp_LE31 = np.interp(interp_length, length, LE31)
-# interp_LE33 = np.interp(interp_length, length, LE33)
-# interp_S11 = np.interp(interp_length, length, S11)
-# interp_S12 = np.interp(interp_length, length, S12)
-# interp_S22 = np.interp(interp_length, length, S22)
-# interp_S23 = np.interp(interp_length, length, S23)
-# interp_S31 = np.interp(interp_length, length, S31)
-# interp_S33 = np.interp(interp_length, length, S33)
-# interp_T1 = np.interp(interp_length, length, T1)
-# interp_T2 = np.interp(interp_length, length, T2)
-# interp_T3 = np.interp(interp_length, length, T3)
+    # If 'plot' is True, plot the node data in 3D
+    if plot:
+        fig = plt.figure(figsize=(12, 6))
+
+        # Subplot 1 - Initial Node Distribution
+        ax1 = fig.add_subplot(121, projection='3d')
+        scatter1 = ax1.scatter(*coordinates_0.T, marker='o', c=labels.astype(float), cmap='viridis')
+        ax1.set_xlabel('X')
+        ax1.set_ylabel('Y')
+        ax1.set_zlabel('Z')
+        ax1.set_title('Initial Node Distribution')
+
+        # Subplot 2 - Node Movement Over Time
+        ax2 = fig.add_subplot(122, projection='3d')
+        final_coordinates = np.column_stack(([node_data[node_id]["X"][-1] for node_id in node_data.keys()],
+                                             [node_data[node_id]["Y"][-1] for node_id in node_data.keys()],
+                                             [node_data[node_id]["Z"][-1] for node_id in node_data.keys()]))
+
+        scatter2 = ax2.scatter(*final_coordinates.T, marker='o', c=labels.astype(float), cmap='viridis')
+        ax2.set_xlabel('X')
+        ax2.set_ylabel('Y')
+        ax2.set_zlabel('Z')
+        ax2.set_title('Final Node Distribution')
+
+        for i in range(len(coordinates_0)):
+            ax2.plot([coordinates_0[i, 0], final_coordinates[i, 0]],
+                     [coordinates_0[i, 1], final_coordinates[i, 1]],
+                     [coordinates_0[i, 2], final_coordinates[i, 2]], 'gray',
+                     label='Node displacement' if i == 0 else "")
+
+        # Make sure legend is not repeated
+        handles, labels = ax2.get_legend_handles_labels()
+        by_label = dict(zip(labels, handles))
+        ax2.legend(by_label.values(), by_label.keys())
+
+        # Add a colorbar with appropriate labels
+        cbar = plt.colorbar(scatter2, ax=[ax1, ax2], pad=0.10)
+        cbar.set_label('Cluster')
+        cbar.set_ticks([0, 1])
+        cbar.set_ticklabels(['Inside', 'Outside'])
+
+        plt.savefig("coord3d_0.png", dpi=300)
+
+    # Load other variables
+    vars_to_load = ["LE11", "LE12", "LE22", "LE23", "LE31", "LE33",
+                    "S11", "S12", "S22", "S23", "S31", "S33",
+                    "T1", "T2", "T3"]
+    loaded_vars = {}
+    for var in vars_to_load:
+        try:
+            loaded_vars[var] = np.array([node_data[node_id][var] for node_id in node_data.keys()])
+        except KeyError:
+            loaded_vars[var] = None
+
+    # Add calculated values to the loaded_vars dictionary
+    loaded_vars.update({
+        "thickness": thickness_aluminium[0],
+        "length": length,
+        "displacement": displacement,
+        "X": np.array(x_coordinates),
+        "Y": np.array(y_coordinates),
+        "Z": np.array(z_coordinates),
+    })
+
+    return loaded_vars
+
+
+def interpolate_values(coordinates, values, new_coordinates):
+    """
+    Interpolate values to a new set of coordinates.
+
+    Parameters:
+    coordinates (ndarray): The input coordinates.
+    values (ndarray): The values at the input coordinates.
+    new_coordinates (ndarray): The coordinates where we want to estimate the values.
+
+    Returns:
+    ndarray: The interpolated values at the new coordinates.
+    """
+    return griddata(coordinates, values, new_coordinates, method='linear')
+
+
+# Function to interpolate a time series
+def interpolate_timeseries(old_coordinates, timeseries, new_coordinates):
+    n_time_steps = timeseries.shape[1]
+    new_timeseries = []
+    for t in range(n_time_steps):
+        new_values_t = interpolate_values(old_coordinates, timeseries[:, t], new_coordinates)
+        new_timeseries.append(new_values_t)
+    return np.array(new_timeseries).T  # Shape: len(new_coordinates) x n_time_steps
+
+
+def interpolate_in_time_and_space(old_coordinates, new_coordinates, old_times, new_times, old_values):
+    """
+    Interpolate values in both space and time.
+
+    Parameters:
+    old_coordinates (array-like): Original spatial coordinates, shape (num_points, 3).
+    new_coordinates (array-like): New spatial coordinates where values are to be interpolated, shape (num_points_new, 3).
+    old_times (array-like): Original time points, shape (num_times,).
+    new_times (array-like): New time points where values are to be interpolated, shape (num_times_new,).
+    old_values (array-like): Original values, shape (num_points, num_times).
+
+    Returns:
+    numpy.ndarray: Interpolated values at new_coordinates and new_times, shape (num_points_new, num_times_new).
+    """
+    num_points_new, num_times_new = len(new_coordinates), len(new_times)
+    interpolated_values = np.empty((num_points_new, num_times_new))
+
+    # Temporal interpolation function for each spatial point
+    interp_funcs = [interp1d(old_times, old_values[i, :]) for i in range(len(old_coordinates))]
+
+    # Spatial interpolation function for each time point
+    for t in range(num_times_new):
+        old_values_t = np.array([func(new_times[t]) for func in interp_funcs])
+        interp_func_space = RegularGridInterpolator(old_coordinates, old_values_t)
+        interpolated_values[:, t] = interp_func_space(new_coordinates)
+
+    return interpolated_values
+
+
+result = process_json('CementOutput.json', plot=True)
+
+# Access thickness and length directly from the result dictionary
+thickness_al = result['thickness']
+length = result['length']
+
+# Define old coordinates
+old_coordinates = np.array([result['X'], result['Y'], result['Z']]).T
+
+# # Define new coordinates
+# new_coordinates = np.random.rand(10, 3)  # Example: 10 random 3D coordinates
+#
+# # Interpolate all values
+# interp_LE11 = interpolate_timeseries(old_coordinates, result['LE11'], new_coordinates)
+# interp_LE12 = interpolate_timeseries(old_coordinates, result['LE12'], new_coordinates)
+# interp_LE22 = interpolate_timeseries(old_coordinates, result['LE22'], new_coordinates)
+# interp_LE23 = interpolate_timeseries(old_coordinates, result['LE23'], new_coordinates)
+# interp_LE31 = interpolate_timeseries(old_coordinates, result['LE31'], new_coordinates)
+# interp_LE33 = interpolate_timeseries(old_coordinates, result['LE33'], new_coordinates)
+#
+# interp_S11 = interpolate_timeseries(old_coordinates, result['S11'], new_coordinates)
+# interp_S12 = interpolate_timeseries(old_coordinates, result['S12'], new_coordinates)
+# interp_S22 = interpolate_timeseries(old_coordinates, result['S22'], new_coordinates)
+# interp_S23 = interpolate_timeseries(old_coordinates, result['S23'], new_coordinates)
+# interp_S31 = interpolate_timeseries(old_coordinates, result['S31'], new_coordinates)
+# interp_S33 = interpolate_timeseries(old_coordinates, result['S33'], new_coordinates)
+#
+# interp_T1 = interpolate_timeseries(old_coordinates, result['T1'], new_coordinates) if result['T1'] is not None else None
+# interp_T2 = interpolate_timeseries(old_coordinates, result['T2'], new_coordinates) if result['T2'] is not None else None
+# interp_T3 = interpolate_timeseries(old_coordinates, result['T3'], new_coordinates) if result['T3'] is not None else None
+#
+# interp_displacement = interpolate_timeseries(old_coordinates, result['displacement'], new_coordinates)
+
+# # Define new times and coordinates
+# new_times = np.linspace(0, 10, 100)  # just an example, use your actual new times
+# new_coordinates = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])  # just an example, use your actual new coordinates
+#
+# # List of variables to interpolate
+# variables_to_interpolate = ['LE11', 'LE12', 'LE22', 'LE23', 'LE31', 'LE33', 'S11', 'S12', 'S22', 'S23', 'S31', 'S33', 'T1', 'T2', 'T3']
+#
+# # Interpolate each variable and store the interpolated values in a new dictionary
+# interpolated_values = {}
+# for var in variables_to_interpolate:
+#     old_values = result[var]
+#     interpolated_values[var] = interpolate_in_time_and_space(result['coordinates'], new_coordinates, result['times'], new_times, old_values)
 
 # physical parameters for Al6082-t6
 ######################################################
@@ -204,6 +342,7 @@ beta, p, sig_hyd, sig_0_local, mu_local, lmbda_local, C_linear_h_local = [fe.Fun
 P0 = fe.FunctionSpace(mesh, "DG", 0)
 sig_hyd_avg, sig_0_test, lmbda_test = [fe.Function(P0, name=n) for n in ["Avg. Hydrostatic stress", "test", "test2"]]
 
+
 # Boundary condition setup
 def top(x, on_boundary):
     return on_boundary and fe.near(x[1], l_y)
@@ -223,9 +362,9 @@ displacement_conditions = {
     'bottom': fe.Expression("-strain*t", t=0.0, degree=0, strain=C_strain_rate)
 }
 
-#top, bottom = boundary_condition(x, l_y), boundary_condition(x, 0.0)
-#u_D = fe.Expression("strain*t", t=0.0, degree=0, strain=C_strain_rate)
-#u_mD = fe.Expression("-strain*t", t=0.0, degree=0, strain=C_strain_rate)
+# top, bottom = boundary_condition(x, l_y), boundary_condition(x, 0.0)
+# u_D = fe.Expression("strain*t", t=0.0, degree=0, strain=C_strain_rate)
+# u_mD = fe.Expression("-strain*t", t=0.0, degree=0, strain=C_strain_rate)
 bc1 = fe.DirichletBC(V, fe.Constant((0.0, 0.0)), boundary_conditions['bottom'])
 bc1_i = bc1
 
