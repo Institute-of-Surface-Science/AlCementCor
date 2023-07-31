@@ -1,0 +1,36 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+        "properties": {
+            "type": "object",
+            "properties": {
+                "Youngs_modulus": {"type": "number"},
+                "Poissons_ratio": {"type": "number"},
+                "Yield_strength": {"type": "number"},
+                "Shear_modulus": {"type": ["number", "null"]},
+                "First_Lame_parameter": {"type": ["number", "null"]},
+                "Tangent_modulus": {"type": ["number", "null"]},
+                "Linear_isotropic_hardening": {"type": ["number", "null"]},
+                "Nonlinear_Ludwik_parameter": {"type": ["number", "null"]},
+                "Exponent_Ludwik": {"type": ["number", "null"]},
+                "Swift_epsilon0": {"type": ["number", "null"]},
+                "Exponent_Swift": {"type": ["number", "null"]}
+            },
+            "required": ["Youngs_modulus", "Poissons_ratio", "Yield_strength"],
+            "additionalProperties": false
+        },
+        "metadata": {
+            "type": "object",
+            "properties": {
+                "material_name": {"type": "string"},
+                "composition": {"type": "string"},
+                "source": {"type": "string"},
+                "remarks": {"type": "string"}
+            },
+            "additionalProperties": false
+        }
+    },
+    "required": ["properties", "metadata"],
+    "additionalProperties": false
+}

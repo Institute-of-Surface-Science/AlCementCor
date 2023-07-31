@@ -7,6 +7,7 @@ import warnings
 from sklearn.cluster import KMeans
 from scipy.interpolate import griddata, RegularGridInterpolator, interp1d
 from ffc.quadrature.deprecation import QuadratureRepresentationDeprecationWarning
+from jsonschema import validate, ValidationError
 
 fe.parameters["form_compiler"]["representation"] = 'quadrature'
 warnings.simplefilter("once", QuadratureRepresentationDeprecationWarning)
@@ -191,6 +192,7 @@ length = result['length']
 # Define old coordinates
 old_coordinates = np.array([result['X'], result['Y'], result['Z']]).T
 
+
 # # Define new coordinates
 # new_coordinates = np.random.rand(10, 3)  # Example: 10 random 3D coordinates
 #
@@ -228,37 +230,96 @@ old_coordinates = np.array([result['X'], result['Y'], result['Z']]).T
 #     old_values = result[var]
 #     interpolated_values[var] = interpolate_in_time_and_space(result['coordinates'], new_coordinates, result['times'], new_times, old_values)
 
-# physical parameters for Al6082-t6
-######################################################
-# young's modulus (only used here)
-C_E = fe.Constant(71000)  # paper 1
+def load_material_properties(json_file):
+    """
+    Load material properties from a JSON file.
+    If Shear_modulus, First_Lame_parameter, Tangent_modulus, Linear_isotropic_hardening, or Nonlinear_Ludwik_parameter is not provided,
+    they are calculated using the relationships.
+    Shear_modulus: G = E / (2 * (1 + ν))
+    First_Lame_parameter: λ = E * ν / ((1 + ν) * (1 - 2 * ν))
+    Tangent_modulus: Et = E / 100
+    Linear_isotropic_hardening: H = E * Et / (E - Et)
+    Nonlinear_Ludwik_parameter: nlin = 0.9 * H
+    where E is Young's modulus, ν is Poisson's ratio, Et is the Tangent modulus, and H is the Linear isotropic hardening.
 
-# poisson's ratio
-C_nu = fe.Constant(0.3)  # paper 1
+    Parameters:
+    json_file (str): Path to the JSON file to be loaded.
 
-# yield strength
-C_sig0 = fe.Constant(277.33)  # paper 1
+    Returns:
+    dict: A dictionary containing the loaded material properties.
+    """
+    with open('material_properties.schema') as f:
+        schema = json.load(f)
 
-# shear modulus (also G)
-C_mu = fe.Constant(C_E / (2.0 * (1 + C_nu)))
+    with open(json_file) as file:
+        material_properties = json.load(file)["properties"]
 
-# first lame parameter
-lmbda = fe.Constant(C_E * C_nu / ((1 + C_nu) * (1 - 2 * C_nu)))
+    # Validate the JSON file against the schema
+    try:
+        validate(instance=material_properties, schema=schema)
+    except ValidationError as e:
+        print(f"Validation error: {e.message}")
 
-# tangent modulus (only used in hardening modulus)
-# C_Et = C_E / 100.
-C_Et = fe.Constant(220.2)  # from Johnson-Cook model from paper 1 (engineering stress)
+    E = material_properties.get("Youngs_modulus")
+    nu = material_properties.get("Poissons_ratio")
 
-# linear model
-C_linear_isotropic_hardening = fe.Constant(C_E * C_Et / (C_E - C_Et))
+    if "Shear_modulus" not in material_properties and E is not None and nu is not None:
+        material_properties["Shear_modulus"] = E / (2.0 * (1 + nu))
 
-# Ludwik model
-C_nlin_ludwik = 0.9 * C_linear_isotropic_hardening
-C_exponent_ludwik = 0.7
+    if "First_Lame_parameter" not in material_properties and E is not None and nu is not None:
+        material_properties["First_Lame_parameter"] = E * nu / ((1 + nu) * (1 - 2 * nu))
 
-# swift model constants
-C_swift_eps0 = 0.19
-C_exponent_swift = 0.3
+    if "Tangent_modulus" not in material_properties and E is not None:
+        material_properties["Tangent_modulus"] = E / 100.0
+
+    Et = material_properties.get("Tangent_modulus")
+
+    if "Linear_isotropic_hardening" not in material_properties and E is not None and Et is not None:
+        material_properties["Linear_isotropic_hardening"] = E * Et / (E - Et)
+
+    H = material_properties.get("Linear_isotropic_hardening")
+
+    if "Nonlinear_Ludwik_parameter" not in material_properties and H is not None:
+        material_properties["Nonlinear_Ludwik_parameter"] = 0.9 * H
+
+    return material_properties
+
+
+def get_material_property(material_properties, key):
+    """
+    Retrieve a material property from a dictionary.
+
+    Parameters:
+    material_properties (dict): The dictionary containing the material properties.
+    key (str): The key of the property to be retrieved.
+
+    Returns:
+    The requested material property.
+
+    Raises:
+    KeyError: If the provided key does not exist in the dictionary.
+    """
+    try:
+        return material_properties[key]
+    except KeyError:
+        print(
+            f"Key '{key}' not found in material properties. Available keys are: {', '.join(material_properties.keys())}")
+        raise
+
+
+material_properties = load_material_properties('material_properties.json')
+
+C_E = get_material_property(material_properties, "Youngs_modulus")
+C_nu = get_material_property(material_properties, "Poissons_ratio")
+C_sig0 = get_material_property(material_properties, "Yield_strength")
+C_mu = get_material_property(material_properties, "Shear_modulus")
+lmbda = get_material_property(material_properties, "First_Lame_parameter")
+C_Et = get_material_property(material_properties, "Tangent_modulus")
+C_linear_isotropic_hardening = get_material_property(material_properties, "Linear_isotropic_hardening")
+C_nlin_ludwik = get_material_property(material_properties, "Nonlinear_Ludwik_parameter")
+C_exponent_ludwik = get_material_property(material_properties, "Exponent_Ludwik")
+C_swift_eps0 = get_material_property(material_properties, "Swift_epsilon0")
+C_exponent_swift = get_material_property(material_properties, "Exponent_Swift")
 
 ######################################################
 # physical parameters for Outer layer (aluminium ceramic)
