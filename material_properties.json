@@ -1,19 +1,36 @@
 {
-    "properties": {
-        "Youngs_modulus": 71000,
-        "Poissons_ratio": 0.3,
-        "Yield_strength": 277.33,
-        "Tangent_modulus": 220.2,
-        "Linear_isotropic_hardening": 7100,
-        "Nonlinear_Ludwik_parameter": 6390,
-        "Exponent_Ludwik": 0.7,
-        "Swift_epsilon0": 0.19,
-        "Exponent_Swift": 0.3
-    },
+  "Al6082-T6": {
     "metadata": {
-        "material_name": "Aluminium 6082-T6",
-        "composition": "Aluminium: 97.4%, Magnesium: 1.2%, Silicon: 1.0%, Iron: 0.5%, Copper: 0.2%, Manganese: 0.6%, Chromium: 0.25%, Zinc: 0.2%, Titanium: 0.1%",
-        "source": "None",
-        "remarks": ""
+      "material_name": "Aluminium 6082-T6",
+      "composition": "Aluminium: 97.4%, Magnesium: 1.2%, Silicon: 1.0%, Iron: 0.5%, Copper: 0.2%, Manganese: 0.6%, Chromium: 0.25%, Zinc: 0.2%, Titanium: 0.1%",
+      "source": "Unknown",
+      "remarks": ""
+    },
+    "properties": {
+      "Youngs_modulus": 71000,
+      "Poissons_ratio": 0.3,
+      "Yield_strength": 277.33,
+      "Tangent_modulus": 220.2,
+      "Linear_isotropic_hardening": 7100,
+      "Nonlinear_Ludwik_parameter": 6390,
+      "Exponent_Ludwik": 0.7,
+      "Swift_epsilon0": 0.19,
+      "Exponent_Swift": 0.3
     }
+  },
+  "Aluminium-Ceramic": {
+    "metadata": {
+      "material_name": "aluminium ceramic",
+      "composition": "Aluminium: Unknown, Ceramic: Unknown",
+      "source": "Unknown",
+      "remarks": ""
+    },
+    "properties": {
+      "Youngs_modulus": 200000,
+      "Poissons_ratio": 0.3,
+      "Yield_strength": 100,
+      "Tangent_modulus": 2000,
+      "Linear_isotropic_hardening": 10000
+    }
+  }
 }

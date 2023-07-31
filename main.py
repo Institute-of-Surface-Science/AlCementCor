@@ -230,11 +230,11 @@ old_coordinates = np.array([result['X'], result['Y'], result['Z']]).T
 #     old_values = result[var]
 #     interpolated_values[var] = interpolate_in_time_and_space(result['coordinates'], new_coordinates, result['times'], new_times, old_values)
 
-def load_material_properties(json_file):
+def load_material_properties(json_file, material):
     """
-    Load material properties from a JSON file.
+    Load material properties from a JSON file for a specific material.
     If Shear_modulus, First_Lame_parameter, Tangent_modulus, Linear_isotropic_hardening, or Nonlinear_Ludwik_parameter is not provided,
-    they are calculated using the relationships.
+    they are calculated using the relationships:
     Shear_modulus: G = E / (2 * (1 + ν))
     First_Lame_parameter: λ = E * ν / ((1 + ν) * (1 - 2 * ν))
     Tangent_modulus: Et = E / 100
@@ -244,6 +244,7 @@ def load_material_properties(json_file):
 
     Parameters:
     json_file (str): Path to the JSON file to be loaded.
+    material (str): The specific material to load properties for.
 
     Returns:
     dict: A dictionary containing the loaded material properties.
@@ -252,11 +253,12 @@ def load_material_properties(json_file):
         schema = json.load(f)
 
     with open(json_file) as file:
-        material_properties = json.load(file)["properties"]
+        all_materials = json.load(file)
+        material_properties = all_materials[material]["properties"]
 
     # Validate the JSON file against the schema
     try:
-        validate(instance=material_properties, schema=schema)
+        validate(instance=all_materials, schema=schema)
     except ValidationError as e:
         print(f"Validation error: {e.message}")
 
@@ -307,43 +309,29 @@ def get_material_property(material_properties, key):
         raise
 
 
-material_properties = load_material_properties('material_properties.json')
+properties_al = load_material_properties('material_properties.json', 'Al6082-T6')
 
-C_E = get_material_property(material_properties, "Youngs_modulus")
-C_nu = get_material_property(material_properties, "Poissons_ratio")
-C_sig0 = get_material_property(material_properties, "Yield_strength")
-C_mu = get_material_property(material_properties, "Shear_modulus")
-lmbda = get_material_property(material_properties, "First_Lame_parameter")
-C_Et = get_material_property(material_properties, "Tangent_modulus")
-C_linear_isotropic_hardening = get_material_property(material_properties, "Linear_isotropic_hardening")
-C_nlin_ludwik = get_material_property(material_properties, "Nonlinear_Ludwik_parameter")
-C_exponent_ludwik = get_material_property(material_properties, "Exponent_Ludwik")
-C_swift_eps0 = get_material_property(material_properties, "Swift_epsilon0")
-C_exponent_swift = get_material_property(material_properties, "Exponent_Swift")
+C_E = get_material_property(properties_al, "Youngs_modulus")
+C_nu = get_material_property(properties_al, "Poissons_ratio")
+C_sig0 = get_material_property(properties_al, "Yield_strength")
+C_mu = get_material_property(properties_al, "Shear_modulus")
+lmbda = get_material_property(properties_al, "First_Lame_parameter")
+C_Et = get_material_property(properties_al, "Tangent_modulus")
+C_linear_isotropic_hardening = get_material_property(properties_al, "Linear_isotropic_hardening")
+C_nlin_ludwik = get_material_property(properties_al, "Nonlinear_Ludwik_parameter")
+C_exponent_ludwik = get_material_property(properties_al, "Exponent_Ludwik")
+C_swift_eps0 = get_material_property(properties_al, "Swift_epsilon0")
+C_exponent_swift = get_material_property(properties_al, "Exponent_Swift")
 
-######################################################
-# physical parameters for Outer layer (aluminium ceramic)
-######################################################
-# young's modulus (only used in this section)
-C_E_outer = fe.Constant(200000)
+properties_ceramic = load_material_properties('material_properties.json', 'Aluminium-Ceramic')
 
-# poisson's ratio (only used in this section)
-C_nu_outer = fe.Constant(0.3)
-
-# yield strength
-C_sig0_outer = fe.Constant(100)
-
-# shear modulus (also G)
-C_mu_outer = fe.Constant(C_E_outer / (2.0 * (1 + C_nu_outer)))
-
-# first lame parameter
-lmbda_outer = C_E_outer * C_nu_outer / ((1 + C_nu_outer) * (1 - 2 * C_nu_outer))
-
-# tangent modulus (only used in hardening modulus)
-C_Et_outer = C_E_outer / 100.
-
-# linear model
-C_linear_isotropic_hardening_outer = fe.Constant(C_E_outer * C_Et_outer / (C_E_outer - C_Et_outer))
+C_E_outer = get_material_property(properties_ceramic, "Youngs_modulus")
+C_nu_outer = get_material_property(properties_ceramic, "Poissons_ratio")
+C_sig0_outer = get_material_property(properties_ceramic, "Yield_strength")
+C_mu_outer = get_material_property(properties_ceramic, "Shear_modulus")
+lmbda_outer = get_material_property(properties_ceramic, "First_Lame_parameter")
+C_Et_outer = get_material_property(properties_ceramic, "Tangent_modulus")
+C_linear_isotropic_hardening_outer = get_material_property(properties_ceramic, "Linear_isotropic_hardening")
 
 ######################################################
 

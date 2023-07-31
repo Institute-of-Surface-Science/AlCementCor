@@ -1,36 +1,42 @@
 {
-    "$schema": "http://json-schema.org/draft-07/schema#",
-    "type": "object",
-    "properties": {
-        "properties": {
-            "type": "object",
-            "properties": {
-                "Youngs_modulus": {"type": "number"},
-                "Poissons_ratio": {"type": "number"},
-                "Yield_strength": {"type": "number"},
-                "Shear_modulus": {"type": ["number", "null"]},
-                "First_Lame_parameter": {"type": ["number", "null"]},
-                "Tangent_modulus": {"type": ["number", "null"]},
-                "Linear_isotropic_hardening": {"type": ["number", "null"]},
-                "Nonlinear_Ludwik_parameter": {"type": ["number", "null"]},
-                "Exponent_Ludwik": {"type": ["number", "null"]},
-                "Swift_epsilon0": {"type": ["number", "null"]},
-                "Exponent_Swift": {"type": ["number", "null"]}
-            },
-            "required": ["Youngs_modulus", "Poissons_ratio", "Yield_strength"],
-            "additionalProperties": false
-        },
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "patternProperties": {
+    "^[a-zA-Z0-9_-]+$": {
+      "type": "object",
+      "properties": {
         "metadata": {
-            "type": "object",
-            "properties": {
-                "material_name": {"type": "string"},
-                "composition": {"type": "string"},
-                "source": {"type": "string"},
-                "remarks": {"type": "string"}
-            },
-            "additionalProperties": false
+          "type": "object",
+          "properties": {
+            "material_name": { "type": "string" },
+            "composition": { "type": "string" },
+            "source": { "type": "string" },
+            "remarks": { "type": "string" }
+          },
+          "required": ["material_name", "composition"],
+          "additionalProperties": false
+        },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "Youngs_modulus": { "type": "number" },
+            "Poissons_ratio": { "type": "number" },
+            "Yield_strength": { "type": "number" },
+            "Tangent_modulus": { "type": "number" },
+            "Linear_isotropic_hardening": { "type": "number" },
+            "Nonlinear_Ludwik_parameter": { "type": "number" },
+            "Exponent_Ludwik": { "type": "number" },
+            "Swift_epsilon0": { "type": "number" },
+            "Exponent_Swift": { "type": "number" }
+          },
+          "required": ["Youngs_modulus", "Poissons_ratio", "Yield_strength"],
+          "additionalProperties": true
         }
-    },
-    "required": ["properties", "metadata"],
-    "additionalProperties": false
+      },
+      "required": ["metadata", "properties"],
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
 }
+
