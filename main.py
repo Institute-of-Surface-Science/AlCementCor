@@ -182,49 +182,29 @@ n_z = 2  # Number of elements
 # C_strain_rate = fe.Constant(0.0001)  # 1/s
 C_strain_rate = fe.Constant(0.000001)  # 0.01/s
 
-# mesh
-#########################################
+# Initialize the mesh
 mesh = fe.RectangleMesh(fe.Point(0.0, 0.0), fe.Point(l_x, l_y), n_x, n_y)
-coords = mesh.coordinates()
 
-# Declare Numerical stuff
-######################################
-deg_u = 2
-deg_stress = 2
+# Declare Numerical Stuff
+deg_u, deg_stress = 2, 2
 
 V = fe.VectorFunctionSpace(mesh, "CG", deg_u)
-u = fe.Function(V, name="Total displacement")
-du = fe.Function(V, name="Iteration correction")
-Du = fe.Function(V, name="Current increment")
-# mu_local_V = fe.Function(V, name="mu in V")
+u, du, Du = [fe.Function(V, name=n) for n in ["Total displacement", "Iteration correction", "Current increment"]]
 
 DG = fe.FunctionSpace(mesh, "DG", 0)
-
 We = fe.VectorElement("Quadrature", mesh.ufl_cell(), degree=deg_stress, dim=4, quad_scheme='default')
 W = fe.FunctionSpace(mesh, We)
-sig = fe.Function(W)
-sig_old = fe.Function(W)
-n_elas = fe.Function(W)
+sig, sig_old, n_elas = [fe.Function(W) for _ in range(3)]
 
-W0e = fe.FiniteElement("Quadrature", mesh.ufl_cell(), degree=deg_stress, quad_scheme='default')
-W0 = fe.FunctionSpace(mesh, W0e)
-beta = fe.Function(W0, name="Beta")
-p = fe.Function(W0, name="Cumulative plastic strain")
-sig_hyd = fe.Function(W0, name="Hydrostatic stress")
-sig_0_local = fe.Function(W0, name="local sig0")
-mu_local = fe.Function(W0, name="local mu")
-lmbda_local = fe.Function(W0, name="local lmbda")
-C_linear_h_local = fe.Function(W0, name="local hardening factor")
+func_names = ["Beta", "Cumulative plastic strain", "Hydrostatic stress", "local sig0",
+              "local mu", "local lmbda", "local hardening factor"]
+W0 = fe.FunctionSpace(mesh, fe.FiniteElement("Quadrature", mesh.ufl_cell(), degree=deg_stress, quad_scheme='default'))
+beta, p, sig_hyd, sig_0_local, mu_local, lmbda_local, C_linear_h_local = [fe.Function(W0, name=n) for n in func_names]
 
 P0 = fe.FunctionSpace(mesh, "DG", 0)
-sig_hyd_avg = fe.Function(P0, name="Avg. Hydrostatic stress")
-sig_0_test = fe.Function(P0, name="test")
-lmbda_test = fe.Function(P0, name="test2")
+sig_hyd_avg, sig_0_test, lmbda_test = [fe.Function(P0, name=n) for n in ["Avg. Hydrostatic stress", "test", "test2"]]
 
-
-# boundary condition setup
-######################################################
-
+# Boundary condition setup
 def top(x, on_boundary):
     return on_boundary and fe.near(x[1], l_y)
 
@@ -233,28 +213,34 @@ def bottom(x, on_boundary):
     return on_boundary and fe.near(x[1], 0.0)
 
 
-# constant displacement functional
-u_D = fe.Expression("strain*t", t=0.0, degree=0, strain=C_strain_rate)
-u_mD = fe.Expression("-strain*t", t=0.0, degree=0, strain=C_strain_rate)
+boundary_conditions = {
+    'top': top,
+    'bottom': bottom
+}
 
-# BOTTOM
-#########
-# set the bottom to not move
-bc1 = fe.DirichletBC(V, fe.Constant((0.0, 0.0)), bottom)
+displacement_conditions = {
+    'top': fe.Expression("strain*t", t=0.0, degree=0, strain=C_strain_rate),
+    'bottom': fe.Expression("-strain*t", t=0.0, degree=0, strain=C_strain_rate)
+}
+
+#top, bottom = boundary_condition(x, l_y), boundary_condition(x, 0.0)
+#u_D = fe.Expression("strain*t", t=0.0, degree=0, strain=C_strain_rate)
+#u_mD = fe.Expression("-strain*t", t=0.0, degree=0, strain=C_strain_rate)
+bc1 = fe.DirichletBC(V, fe.Constant((0.0, 0.0)), boundary_conditions['bottom'])
 bc1_i = bc1
 
 if load_input:
-    bc1 = fe.DirichletBC(V.sub(1), u_mD, bottom)
+    bc1 = fe.DirichletBC(V.sub(1), displacement_conditions['bottom'], boundary_conditions['bottom'])
     # reset displacement to 0
-    bc1_i = fe.DirichletBC(V.sub(1), 0, bottom)
+    bc1_i = fe.DirichletBC(V.sub(1), 0, boundary_conditions['bottom'])
 
 # TOP
 #########
 # set the top to displace with a constant strain rate
-bc2 = fe.DirichletBC(V.sub(1), u_D, top)
+bc2 = fe.DirichletBC(V.sub(1), displacement_conditions['top'], boundary_conditions['top'])
 
 # reset displacement to 0
-bc2_i = fe.DirichletBC(V.sub(1), 0, top)
+bc2_i = fe.DirichletBC(V.sub(1), 0, boundary_conditions['top'])
 
 # set boundary condition
 bc = [bc1, bc2]
@@ -562,7 +548,9 @@ while time < endTime:
     i += 1
 
     # update the displacement boundary
-    u_D.t = time_step
+    displacement_conditions['top'].t = time_step
+    if load_input:
+        displacement_conditions['bottom'].t = time_step
 
     # assemble system
     A, Res = fe.assemble_system(a_Newton, res, bc)
