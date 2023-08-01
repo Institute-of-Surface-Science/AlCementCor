@@ -14,7 +14,7 @@ fe.parameters["form_compiler"]["representation"] = 'quadrature'
 warnings.simplefilter("once", QuadratureRepresentationDeprecationWarning)
 
 
-def process_json(filename, plot=False):
+def process_input_tensors(filename, plot=False):
     """
     Load a JSON file containing node information, calculate the thickness and length of the area,
     and optionally plot the nodes in 3D.
@@ -205,7 +205,7 @@ endTime = simulation_config.time_integration_endpoint
 no_of_timesteps = simulation_config.number_of_timesteps
 selected_hardening_model = simulation_config.selected_hardening_model
 
-result = process_json('CementOutput.json', plot=True)
+result = process_input_tensors('CementOutput.json', plot=True)
 
 # Access thickness and length directly from the result dictionary
 thickness_al = result['thickness']
