@@ -8,6 +8,7 @@ from sklearn.cluster import KMeans
 from scipy.interpolate import griddata, RegularGridInterpolator, interp1d
 from ffc.quadrature.deprecation import QuadratureRepresentationDeprecationWarning
 from jsonschema import validate, ValidationError
+from enum import Enum
 
 fe.parameters["form_compiler"]["representation"] = 'quadrature'
 warnings.simplefilter("once", QuadratureRepresentationDeprecationWarning)
@@ -183,6 +184,27 @@ def interpolate_in_time_and_space(old_coordinates, new_coordinates, old_times, n
     return interpolated_values
 
 
+class SimulationConfig:
+    def __init__(self, config):
+        self.use_two_layers = config['simulation_parameters']['use_two_layers']
+        self.time_integration_endpoint = config['simulation_parameters']['time_integration_endpoint']
+        self.number_of_timesteps = config['simulation_parameters']['number_of_timesteps']
+        self.selected_hardening_model = config['simulation_parameters']['selected_hardening_model']
+
+
+# Load the configuration file
+with open('simulation_config.json') as json_file:
+    config = json.load(json_file)
+
+# Create an instance of SimulationConfig
+simulation_config = SimulationConfig(config)
+
+# Now you can access the values like this
+two_layers = simulation_config.use_two_layers
+endTime = simulation_config.time_integration_endpoint
+no_of_timesteps = simulation_config.number_of_timesteps
+selected_hardening_model = simulation_config.selected_hardening_model
+
 result = process_json('CementOutput.json', plot=True)
 
 # Access thickness and length directly from the result dictionary
@@ -299,62 +321,72 @@ def load_material_properties(json_file, material):
     return material_properties
 
 
-def get_material_property(material_properties, key):
-    """
-    Retrieve a material property from a dictionary.
-
-    Parameters:
-    material_properties (dict): The dictionary containing the material properties.
-    key (str): The key of the property to be retrieved.
-
-    Returns:
-    The requested material property.
-
-    Raises:
-    KeyError: If the provided key does not exist in the dictionary.
-    """
-    try:
-        return material_properties[key]
-    except KeyError:
-        print(
-            f"Key '{key}' not found in material properties. Available keys are: {', '.join(material_properties.keys())}")
-        raise
+class Property(Enum):
+    YOUNGS_MODULUS = "Youngs_modulus"
+    POISSONS_RATIO = "Poissons_ratio"
+    YIELD_STRENGTH = "Yield_strength"
+    SHEAR_MODULUS = "Shear_modulus"
+    FIRST_LAME_PARAMETER = "First_Lame_parameter"
+    TANGENT_MODULUS = "Tangent_modulus"
+    LINEAR_ISOTROPIC_HARDENING = "Linear_isotropic_hardening"
+    NONLINEAR_LUDWIK_PARAMETER = "Nonlinear_Ludwik_parameter"
+    EXPONENT_LUDWIK = "Exponent_Ludwik"
+    SWIFT_EPSILON0 = "Swift_epsilon0"
+    EXPONENT_SWIFT = "Exponent_Swift"
 
 
-properties_al = load_material_properties('material_properties.json', 'Al6082-T6')
+class MaterialProperties:
+    def __init__(self, properties):
+        self.properties = properties
 
-C_E = get_material_property(properties_al, "Youngs_modulus")
-C_nu = get_material_property(properties_al, "Poissons_ratio")
-C_sig0 = get_material_property(properties_al, "Yield_strength")
-C_mu = get_material_property(properties_al, "Shear_modulus")
-lmbda = get_material_property(properties_al, "First_Lame_parameter")
-C_Et = get_material_property(properties_al, "Tangent_modulus")
-C_linear_isotropic_hardening = get_material_property(properties_al, "Linear_isotropic_hardening")
-C_nlin_ludwik = get_material_property(properties_al, "Nonlinear_Ludwik_parameter")
-C_exponent_ludwik = get_material_property(properties_al, "Exponent_Ludwik")
-C_swift_eps0 = get_material_property(properties_al, "Swift_epsilon0")
-C_exponent_swift = get_material_property(properties_al, "Exponent_Swift")
+    def get(self, key):
+        """
+        Retrieve a material property.
 
-properties_ceramic = load_material_properties('material_properties.json', 'Aluminium-Ceramic')
+        Parameters:
+        key (str): The key of the property to be retrieved.
 
-C_E_outer = get_material_property(properties_ceramic, "Youngs_modulus")
-C_nu_outer = get_material_property(properties_ceramic, "Poissons_ratio")
-C_sig0_outer = get_material_property(properties_ceramic, "Yield_strength")
-C_mu_outer = get_material_property(properties_ceramic, "Shear_modulus")
-lmbda_outer = get_material_property(properties_ceramic, "First_Lame_parameter")
-C_Et_outer = get_material_property(properties_ceramic, "Tangent_modulus")
-C_linear_isotropic_hardening_outer = get_material_property(properties_ceramic, "Linear_isotropic_hardening")
+        Returns:
+        The requested material property.
+
+        Raises:
+        KeyError: If the provided key does not exist in the properties.
+        """
+        try:
+            return self.properties[key]
+        except KeyError:
+            print(
+                f"Key '{key}' not found in material properties. Available keys are: {', '.join(self.properties.keys())}")
+            raise
 
 
-# Load the configuration file
-with open('simulation_config.json') as json_file:
-    config = json.load(json_file)
+# Load material properties
+properties_al_dict = load_material_properties('material_properties.json', 'Al6082-T6')
+properties_al = MaterialProperties(properties_al_dict)
 
-two_layers = config['simulation_parameters']['use_two_layers']
-endTime = config['simulation_parameters']['time_integration_endpoint']
-no_of_timesteps = config['simulation_parameters']['number_of_timesteps']
-selected_hardening_model = config['simulation_parameters']['selected_hardening_model']
+properties_ceramic_dict = load_material_properties('material_properties.json', 'Aluminium-Ceramic')
+properties_ceramic = MaterialProperties(properties_ceramic_dict)
 
+# Access properties
+C_E = properties_al.get(Property.YOUNGS_MODULUS.value)
+C_nu = properties_al.get(Property.POISSONS_RATIO.value)
+C_sig0 = properties_al.get(Property.YIELD_STRENGTH.value)
+C_mu = properties_al.get(Property.SHEAR_MODULUS.value)
+lmbda = properties_al.get(Property.FIRST_LAME_PARAMETER.value)
+C_Et = properties_al.get(Property.TANGENT_MODULUS.value)
+C_linear_isotropic_hardening = properties_al.get(Property.LINEAR_ISOTROPIC_HARDENING.value)
+C_nlin_ludwik = properties_al.get(Property.NONLINEAR_LUDWIK_PARAMETER.value)
+C_exponent_ludwik = properties_al.get(Property.EXPONENT_LUDWIK.value)
+C_swift_eps0 = properties_al.get(Property.SWIFT_EPSILON0.value)
+C_exponent_swift = properties_al.get(Property.EXPONENT_SWIFT.value)
+
+C_E_outer = properties_ceramic.get(Property.YOUNGS_MODULUS.value)
+C_nu_outer = properties_ceramic.get(Property.POISSONS_RATIO.value)
+C_sig0_outer = properties_ceramic.get(Property.YIELD_STRENGTH.value)
+C_mu_outer = properties_ceramic.get(Property.SHEAR_MODULUS.value)
+lmbda_outer = properties_ceramic.get(Property.FIRST_LAME_PARAMETER.value)
+C_Et_outer = properties_ceramic.get(Property.TANGENT_MODULUS.value)
+C_linear_isotropic_hardening_outer = properties_ceramic.get(Property.LINEAR_ISOTROPIC_HARDENING.value)
 
 # Geometry of the domain
 ##########################################
