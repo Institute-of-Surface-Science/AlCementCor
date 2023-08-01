@@ -1,15 +1,8 @@
 import json
 import matplotlib.pyplot as plt
 import numpy as np
-import warnings
-import os
 from sklearn.cluster import KMeans
-from scipy.interpolate import griddata, RegularGridInterpolator, interp1d
-from ffc.quadrature.deprecation import QuadratureRepresentationDeprecationWarning
-from jsonschema import validate, ValidationError
 from enum import Enum
-from typing import Any, Dict
-import config
 
 
 class InputFileKeys(Enum):

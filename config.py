@@ -2,6 +2,7 @@ import json
 import os
 from enum import Enum
 
+
 class SimulationFields(Enum):
     """
     An enumeration that provides string constants for accessing fields in a simulation configuration file.
