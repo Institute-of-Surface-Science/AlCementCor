@@ -185,37 +185,107 @@ def interpolate_in_time_and_space(old_coordinates, new_coordinates, old_times, n
 
 
 class SimulationConfig:
-    def __init__(self, config_path):
-        with open(config_path) as json_file:
-            self.config = json.load(json_file)
-        params = self.config.get('simulation_parameters', {})
+    """
+    A class that encapsulates the simulation configuration parameters from a JSON file.
 
-        self.use_two_layers = params.get('use_two_layers')
-        self.time_integration_endpoint = params.get('time_integration_endpoint')
-        self.number_of_timesteps = params.get('number_of_timesteps')
-        self.selected_hardening_model = params.get('selected_hardening_model')
-        self.output_json_file = params.get('output_json_file')
-        self.thickness_al = params.get('thickness_al')
-        self.length = params.get('length')
+    Attributes:
+    ----------
+    title : str
+        Title of the simulation.
+    description : str
+        Description of the simulation.
+    date : str
+        Date when the simulation configuration was created.
+    author : str
+        Author who created the simulation configuration.
+    use_two_material_layers : bool
+        Specifies whether to use two material layers in the simulation.
+    integration_time_limit : int
+        Specifies the endpoint for the time integration in the simulation.
+    total_timesteps : int
+        Specifies the total number of timesteps for the simulation.
+    chosen_hardening_model : str
+        Specifies the type of hardening model to be used in the simulation.
+    field_input_file : str
+        Specifies the file from which to read the simulation field input data.
+    layer_thickness : float
+        Specifies the thickness of the material layer in the simulation.
+    length : float
+        Specifies the length of the material in the simulation.
+    width : float
+        Specifies the width of the material in the simulation.
+
+    Methods:
+    -------
+    __init__(self, config_file: str)
+        Initializes a SimulationConfig object by loading a JSON file.
+    """
+
+    def __init__(self, config_file: str):
+        """Initializes a SimulationConfig object."""
+        try:
+            with open(config_file) as json_file:
+                config = json.load(json_file)
+        except FileNotFoundError:
+            print(f"Configuration file '{config_file}' not found.")
+            raise
+        except ValueError as e:
+            print(f"Invalid JSON in configuration file '{config_file}': {e}")
+            raise
+
+        # Metadata
+        try:
+            self.title: str = config["simulation_metadata"]["title"]
+            self.description: str = config["simulation_metadata"]["description"]
+            self.date: str = config["simulation_metadata"]["date"]
+            self.author: str = config["simulation_metadata"]["author"]
+        except KeyError as e:
+            print(f"Missing key in simulation metadata: {e}")
+            raise
+
+        # Simulation Parameters
+        try:
+            self.use_two_material_layers: bool = config["simulation_parameters"]["use_two_material_layers"]
+            self.integration_time_limit: int = config["simulation_parameters"]["integration_time_limit"]
+            self.total_timesteps: int = config["simulation_parameters"]["total_timesteps"]
+            self.chosen_hardening_model: str = config["simulation_parameters"]["chosen_hardening_model"]
+            self.field_input_file: str = config["simulation_parameters"]["field_input_file"]
+        except KeyError as e:
+            print(f"Missing key in simulation parameters: {e}")
+            raise
+
+        # Material Dimensions
+        try:
+            self.layer_thickness: float = config["material_dimensions"]["layer_thickness"]
+            self.length: float = config["material_dimensions"]["length"]
+            self.width: float = config["material_dimensions"]["width"]
+        except KeyError as e:
+            print(f"Missing key in material dimensions: {e}")
+            raise
 
 
+# Initialize a SimulationConfig object using the configuration file
 simulation_config = SimulationConfig('simulation_config.json')
 
 # Now you can access the values like this
-two_layers = simulation_config.use_two_layers
-endTime = simulation_config.time_integration_endpoint
-no_of_timesteps = simulation_config.number_of_timesteps
-selected_hardening_model = simulation_config.selected_hardening_model
+two_layers = simulation_config.use_two_material_layers
+endTime = simulation_config.integration_time_limit
+no_of_timesteps = simulation_config.total_timesteps
+selected_hardening_model = simulation_config.chosen_hardening_model
 
-if simulation_config.output_json_file:
-    result = process_input_tensors(simulation_config.output_json_file, plot=True)
+# Check if the field_input_file is set in the configuration file
+if simulation_config.field_input_file:
+    # If it is, load the thickness and length from the file
+    result = process_input_tensors(simulation_config.field_input_file, plot=True)
 
     # Access thickness and length directly from the result dictionary
     thickness_al = result['thickness']
     length = result['length']
 else:
-    thickness_al = simulation_config.thickness_al
+    # If it isn't, load the thickness and length from the configuration file
+    thickness_al = simulation_config.layer_thickness
     length = simulation_config.length
+
 
 # Define old coordinates
 old_coordinates = np.array([result['X'], result['Y'], result['Z']]).T
