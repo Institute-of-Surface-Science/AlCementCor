@@ -488,7 +488,56 @@ class Property(Enum):
 
 
 class MaterialProperties:
+    """
+    Class representing the properties of a material.
+
+    Attributes:
+    ----------
+    file_name : str
+        The name of the JSON file containing the material properties.
+    material : str
+        The specific material to load properties for.
+
+    Methods:
+    -------
+    get_property(property_name : str) -> Union[int, float]
+        Gets the value of the given property.
+
+    Properties:
+    ----------
+    youngs_modulus
+    poisson_ratio
+    yield_strength
+    shear_modulus
+    first_lame_parameter
+    tangent_modulus
+    linear_isotropic_hardening
+    nonlinear_ludwik_parameter
+    exponent_ludwik
+    swift_epsilon0
+    exponent_swift
+
+    Raises:
+    ------
+    KeyError:
+        If the given property name is not in the material properties dictionary.
+    ValueError:
+        If the provided JSON file does not follow the expected structure/schema.
+    FileNotFoundError:
+        If the provided JSON file or schema file does not exist.
+
+    """
     def __init__(self, json_file: str, material: str) -> None:
+        """
+        Constructs all the necessary attributes for the material properties object.
+
+        Parameters:
+        ----------
+        file_name : str
+            The name of the JSON file containing the material properties.
+        material : str
+            The specific material to load properties for.
+        """
         self.properties = self.load_and_validate(json_file, material)
 
     @staticmethod
