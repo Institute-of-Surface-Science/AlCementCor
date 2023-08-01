@@ -10,6 +10,7 @@ from scipy.interpolate import griddata, RegularGridInterpolator, interp1d
 from ffc.quadrature.deprecation import QuadratureRepresentationDeprecationWarning
 from jsonschema import validate, ValidationError
 from enum import Enum
+from typing import Any, Dict
 
 fe.parameters["form_compiler"]["representation"] = 'quadrature'
 warnings.simplefilter("once", QuadratureRepresentationDeprecationWarning)
@@ -487,66 +488,65 @@ class Property(Enum):
 
 
 class MaterialProperties:
-    def __init__(self, json_file, material):
-        # Load and validate schema
-        with open('material_properties.schema') as f:
-            schema = json.load(f)
+    def __init__(self, json_file: str, material: str) -> None:
+        self.properties = self.load_and_validate(json_file, material)
 
-        # Load JSON file
-        with open(json_file) as file:
-            all_materials = json.load(file)
+    @staticmethod
+    def load_and_validate(json_file: str, material: str) -> Dict[str, Any]:
+        schema = MaterialProperties.load_schema()
+        all_materials = MaterialProperties.load_materials(json_file)
+        MaterialProperties.validate(all_materials, schema)
 
-        # Validate the JSON file against the schema
-        try:
-            validate(instance=all_materials, schema=schema)
-        except ValidationError as e:
-            print(f"Validation error: {e.message}")
-
-        # Check if the material is in the JSON file
         if material not in all_materials:
             raise ValueError(f"Material {material} not found in the JSON file.")
 
-        # Extract specific material properties
-        self.properties = all_materials[material]["properties"]
+        return MaterialProperties.calculate_properties(all_materials[material]["properties"])
 
-        # Retrieve or calculate each property
-        E = self.properties.get(Property.YOUNGS_MODULUS.value)
-        nu = self.properties.get(Property.POISSONS_RATIO.value)
+    @staticmethod
+    def load_schema() -> Dict[str, Any]:
+        with open('material_properties.schema') as f:
+            return json.load(f)
+
+    @staticmethod
+    def load_materials(json_file: str) -> Dict[str, Any]:
+        with open(json_file) as file:
+            return json.load(file)
+
+    @staticmethod
+    def validate(materials: Dict[str, Any], schema: Dict[str, Any]) -> None:
+        try:
+            validate(instance=materials, schema=schema)
+        except ValidationError as e:
+            raise ValueError(f"Validation error: {e.message}")
+
+    @staticmethod
+    def calculate_properties(properties: Dict[str, Any]) -> Dict[str, Any]:
+        E = properties.get(Property.YOUNGS_MODULUS.value)
+        nu = properties.get(Property.POISSONS_RATIO.value)
 
         if E is not None and nu is not None:
-            self.properties.setdefault(Property.SHEAR_MODULUS.value, E / (2.0 * (1 + nu)))
-            self.properties.setdefault(Property.FIRST_LAME_PARAMETER.value, E * nu / ((1 + nu) * (1 - 2 * nu)))
+            properties.setdefault(Property.SHEAR_MODULUS.value, E / (2.0 * (1 + nu)))
+            properties.setdefault(Property.FIRST_LAME_PARAMETER.value, E * nu / ((1 + nu) * (1 - 2 * nu)))
 
         if E is not None:
-            self.properties.setdefault(Property.TANGENT_MODULUS.value, E / 100.0)
+            properties.setdefault(Property.TANGENT_MODULUS.value, E / 100.0)
 
-        Et = self.properties.get(Property.TANGENT_MODULUS.value)
+        Et = properties.get(Property.TANGENT_MODULUS.value)
         if E is not None and Et is not None:
-            self.properties.setdefault(Property.LINEAR_ISOTROPIC_HARDENING.value, E * Et / (E - Et))
+            properties.setdefault(Property.LINEAR_ISOTROPIC_HARDENING.value, E * Et / (E - Et))
 
-        H = self.properties.get(Property.LINEAR_ISOTROPIC_HARDENING.value)
+        H = properties.get(Property.LINEAR_ISOTROPIC_HARDENING.value)
         if H is not None:
-            self.properties.setdefault(Property.NONLINEAR_LUDWIK_PARAMETER.value, 0.9 * H)
+            properties.setdefault(Property.NONLINEAR_LUDWIK_PARAMETER.value, 0.9 * H)
 
-    def get(self, key):
-        """
-        Retrieve a material property.
+        return properties
 
-        Parameters:
-        key (str): The key of the property to be retrieved.
-
-        Returns:
-        The requested material property.
-
-        Raises:
-        KeyError: If the provided key does not exist in the properties.
-        """
+    def get(self, key: str) -> Any:
         try:
             return self.properties[key]
         except KeyError:
-            print(
-                f"Key '{key}' not found in material properties. Available keys are: {', '.join(self.properties.keys())}")
-            raise
+            available_keys = ", ".join(self.properties.keys())
+            raise KeyError(f"Key '{key}' not found in material properties. Available keys are: {available_keys}")
 
 
 # Load material properties
