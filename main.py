@@ -186,6 +186,44 @@ def interpolate_in_time_and_space(old_coordinates, new_coordinates, old_times, n
 
 
 class SimulationFields(Enum):
+    """
+    An enumeration that provides string constants for accessing fields in a simulation configuration file.
+
+    The fields include metadata about the simulation, parameters of the simulation and dimensions of the material used.
+
+    Attributes:
+    -----------
+    SIMULATION_METADATA : str
+        The key to access metadata about the simulation.
+    TITLE : str
+        The key to access the title of the simulation.
+    DESCRIPTION : str
+        The key to access the description of the simulation.
+    DATE : str
+        The key to access the date the simulation was created.
+    AUTHOR : str
+        The key to access the name of the author who created the simulation.
+    SIMULATION_PARAMETERS : str
+        The key to access parameters of the simulation.
+    USE_TWO_MATERIAL_LAYERS : str
+        The key to access the information whether two material layers are used in the simulation.
+    INTEGRATION_TIME_LIMIT : str
+        The key to access the time limit for integration in the simulation.
+    TOTAL_TIMESTEPS : str
+        The key to access the total number of time steps in the simulation.
+    CHOSEN_HARDENING_MODEL : str
+        The key to access the type of hardening model chosen for the simulation.
+    FIELD_INPUT_FILE : str
+        The key to access the name of the input file for the simulation field.
+    MATERIAL_DIMENSIONS : str
+        The key to access the dimensions of the material used in the simulation.
+    LAYER_THICKNESS : str
+        The key to access the thickness of the material layer.
+    LENGTH : str
+        The key to access the length of the material.
+    WIDTH : str
+        The key to access the width of the material.
+    """
     SIMULATION_METADATA = "simulation_metadata"
     TITLE = "title"
     DESCRIPTION = "description"
@@ -334,8 +372,8 @@ if simulation_config.field_input_file:
     result = process_input_tensors(simulation_config.field_input_file, plot=True)
 
     # Access thickness and length directly from the result dictionary
-    thickness_al = result[SimulationFields.THICKNESS.value]
-    length = result[SimulationFields.LENGTH.value]
+    thickness_al = result["thickness"]
+    length = result["length"]
 else:
     # If it isn't, load the thickness and length from the configuration file
     thickness_al = simulation_config.layer_thickness
