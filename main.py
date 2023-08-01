@@ -185,19 +185,21 @@ def interpolate_in_time_and_space(old_coordinates, new_coordinates, old_times, n
 
 
 class SimulationConfig:
-    def __init__(self, config):
-        self.use_two_layers = config['simulation_parameters']['use_two_layers']
-        self.time_integration_endpoint = config['simulation_parameters']['time_integration_endpoint']
-        self.number_of_timesteps = config['simulation_parameters']['number_of_timesteps']
-        self.selected_hardening_model = config['simulation_parameters']['selected_hardening_model']
+    def __init__(self, config_path):
+        with open(config_path) as json_file:
+            self.config = json.load(json_file)
+        params = self.config.get('simulation_parameters', {})
+
+        self.use_two_layers = params.get('use_two_layers')
+        self.time_integration_endpoint = params.get('time_integration_endpoint')
+        self.number_of_timesteps = params.get('number_of_timesteps')
+        self.selected_hardening_model = params.get('selected_hardening_model')
+        self.output_json_file = params.get('output_json_file')
+        self.thickness_al = params.get('thickness_al')
+        self.length = params.get('length')
 
 
-# Load the configuration file
-with open('simulation_config.json') as json_file:
-    config = json.load(json_file)
-
-# Create an instance of SimulationConfig
-simulation_config = SimulationConfig(config)
+simulation_config = SimulationConfig('simulation_config.json')
 
 # Now you can access the values like this
 two_layers = simulation_config.use_two_layers
@@ -205,11 +207,15 @@ endTime = simulation_config.time_integration_endpoint
 no_of_timesteps = simulation_config.number_of_timesteps
 selected_hardening_model = simulation_config.selected_hardening_model
 
-result = process_input_tensors('CementOutput.json', plot=True)
+if simulation_config.output_json_file:
+    result = process_input_tensors(simulation_config.output_json_file, plot=True)
 
-# Access thickness and length directly from the result dictionary
-thickness_al = result['thickness']
-length = result['length']
+    # Access thickness and length directly from the result dictionary
+    thickness_al = result['thickness']
+    length = result['length']
+else:
+    thickness_al = simulation_config.thickness_al
+    length = simulation_config.length
 
 # Define old coordinates
 old_coordinates = np.array([result['X'], result['Y'], result['Z']]).T
