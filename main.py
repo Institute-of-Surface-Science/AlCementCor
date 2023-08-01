@@ -472,75 +472,6 @@ old_coordinates = np.array([result['X'], result['Y'], result['Z']]).T
 #     old_values = result[var]
 #     interpolated_values[var] = interpolate_in_time_and_space(result['coordinates'], new_coordinates, result['times'], new_times, old_values)
 
-def load_material_properties(json_file, material):
-    """
-    Load material properties from a JSON file for a specific material.
-    If Shear_modulus, First_Lame_parameter, Tangent_modulus, Linear_isotropic_hardening,
-    or Nonlinear_Ludwik_parameter is not provided, they are calculated using the following relationships:
-
-    - Shear_modulus (G): G = E / (2 * (1 + ν)) (Equation 1)
-    - First_Lame_parameter (λ): λ = E * ν / ((1 + ν) * (1 - 2 * ν)) (Equation 2)
-    - Tangent_modulus (Et): Et = E / 100 (Equation 3)
-    - Linear_isotropic_hardening (H): H = E * Et / (E - Et) (Equation 4)
-    - Nonlinear_Ludwik_parameter (nlin): nlin = 0.9 * H (Equation 5)
-
-    Where:
-    E is Young's modulus,
-    ν is Poisson's ratio,
-    Et is the Tangent modulus, and
-    H is the Linear isotropic hardening.
-
-    Parameters:
-    json_file (str): Path to the JSON file to be loaded.
-    material (str): The specific material to load properties for.
-
-    Returns:
-    dict: A dictionary containing the loaded material properties.
-    """
-    # Load and validate schema
-    with open('material_properties.schema') as f:
-        schema = json.load(f)
-
-    # Load JSON file
-    with open(json_file) as file:
-        all_materials = json.load(file)
-
-    # Validate the JSON file against the schema
-    try:
-        validate(instance=all_materials, schema=schema)
-    except ValidationError as e:
-        print(f"Validation error: {e.message}")
-
-    # Check if the material is in the JSON file
-    if material not in all_materials:
-        print(f"Material {material} not found in the JSON file.")
-        return
-
-    # Extract specific material properties
-    material_properties = all_materials[material]["properties"]
-
-    # Retrieve or calculate each property
-    E = material_properties.get("Youngs_modulus")
-    nu = material_properties.get("Poissons_ratio")
-
-    if E is not None and nu is not None:
-        material_properties.setdefault("Shear_modulus", E / (2.0 * (1 + nu)))
-        material_properties.setdefault("First_Lame_parameter", E * nu / ((1 + nu) * (1 - 2 * nu)))
-
-    if E is not None:
-        material_properties.setdefault("Tangent_modulus", E / 100.0)
-
-    Et = material_properties.get("Tangent_modulus")
-    if E is not None and Et is not None:
-        material_properties.setdefault("Linear_isotropic_hardening", E * Et / (E - Et))
-
-    H = material_properties.get("Linear_isotropic_hardening")
-    if H is not None:
-        material_properties.setdefault("Nonlinear_Ludwik_parameter", 0.9 * H)
-
-    return material_properties
-
-
 class Property(Enum):
     YOUNGS_MODULUS = "Youngs_modulus"
     POISSONS_RATIO = "Poissons_ratio"
@@ -556,8 +487,46 @@ class Property(Enum):
 
 
 class MaterialProperties:
-    def __init__(self, properties):
-        self.properties = properties
+    def __init__(self, json_file, material):
+        # Load and validate schema
+        with open('material_properties.schema') as f:
+            schema = json.load(f)
+
+        # Load JSON file
+        with open(json_file) as file:
+            all_materials = json.load(file)
+
+        # Validate the JSON file against the schema
+        try:
+            validate(instance=all_materials, schema=schema)
+        except ValidationError as e:
+            print(f"Validation error: {e.message}")
+
+        # Check if the material is in the JSON file
+        if material not in all_materials:
+            raise ValueError(f"Material {material} not found in the JSON file.")
+
+        # Extract specific material properties
+        self.properties = all_materials[material]["properties"]
+
+        # Retrieve or calculate each property
+        E = self.properties.get(Property.YOUNGS_MODULUS.value)
+        nu = self.properties.get(Property.POISSONS_RATIO.value)
+
+        if E is not None and nu is not None:
+            self.properties.setdefault(Property.SHEAR_MODULUS.value, E / (2.0 * (1 + nu)))
+            self.properties.setdefault(Property.FIRST_LAME_PARAMETER.value, E * nu / ((1 + nu) * (1 - 2 * nu)))
+
+        if E is not None:
+            self.properties.setdefault(Property.TANGENT_MODULUS.value, E / 100.0)
+
+        Et = self.properties.get(Property.TANGENT_MODULUS.value)
+        if E is not None and Et is not None:
+            self.properties.setdefault(Property.LINEAR_ISOTROPIC_HARDENING.value, E * Et / (E - Et))
+
+        H = self.properties.get(Property.LINEAR_ISOTROPIC_HARDENING.value)
+        if H is not None:
+            self.properties.setdefault(Property.NONLINEAR_LUDWIK_PARAMETER.value, 0.9 * H)
 
     def get(self, key):
         """
@@ -581,11 +550,8 @@ class MaterialProperties:
 
 
 # Load material properties
-properties_al_dict = load_material_properties('material_properties.json', 'Al6082-T6')
-properties_al = MaterialProperties(properties_al_dict)
-
-properties_ceramic_dict = load_material_properties('material_properties.json', 'Aluminium-Ceramic')
-properties_ceramic = MaterialProperties(properties_ceramic_dict)
+properties_al = MaterialProperties('material_properties.json', 'Al6082-T6')
+properties_ceramic = MaterialProperties('material_properties.json', 'Aluminium-Ceramic')
 
 # Access properties
 C_E = properties_al.get(Property.YOUNGS_MODULUS.value)
