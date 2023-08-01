@@ -1,6 +1,6 @@
-# Advanced Material Simulation
+# OpenModel Example: cement-aluminium interface damage model workflow
 
-This repository contains a powerful Python-based framework for conducting simulations on various materials. The application employs modern numerical methods, providing accurate and reliable results for research and industrial applications. The simulation pipeline is highly customizable, allowing users to adapt the simulation process to specific material properties and experimental setups.
+OpenModel example use case for damage simulation for a cement-aluminium interface damage model workflow.
 
 ## Dependencies
 
