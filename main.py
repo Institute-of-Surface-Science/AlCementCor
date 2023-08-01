@@ -548,31 +548,77 @@ class MaterialProperties:
             available_keys = ", ".join(self.properties.keys())
             raise KeyError(f"Key '{key}' not found in material properties. Available keys are: {available_keys}")
 
+    @property
+    def youngs_modulus(self) -> Any:
+        return self.get(Property.YOUNGS_MODULUS.value)
+
+    @property
+    def poisson_ratio(self) -> Any:
+        return self.get(Property.POISSONS_RATIO.value)
+
+    @property
+    def yield_strength(self) -> Any:
+        return self.get(Property.YIELD_STRENGTH.value)
+
+    @property
+    def shear_modulus(self) -> Any:
+        return self.get(Property.SHEAR_MODULUS.value)
+
+    @property
+    def first_lame_parameter(self) -> Any:
+        return self.get(Property.FIRST_LAME_PARAMETER.value)
+
+    @property
+    def tangent_modulus(self) -> Any:
+        return self.get(Property.TANGENT_MODULUS.value)
+
+    @property
+    def linear_isotropic_hardening(self) -> Any:
+        return self.get(Property.LINEAR_ISOTROPIC_HARDENING.value)
+
+    @property
+    def nonlinear_ludwik_parameter(self) -> Any:
+        return self.get(Property.NONLINEAR_LUDWIK_PARAMETER.value)
+
+    @property
+    def exponent_ludwik(self) -> Any:
+        return self.get(Property.EXPONENT_LUDWIK.value)
+
+    @property
+    def swift_epsilon0(self) -> Any:
+        return self.get(Property.SWIFT_EPSILON0.value)
+
+    @property
+    def exponent_swift(self) -> Any:
+        return self.get(Property.EXPONENT_SWIFT.value)
+
 
 # Load material properties
 properties_al = MaterialProperties('material_properties.json', 'Al6082-T6')
 properties_ceramic = MaterialProperties('material_properties.json', 'Aluminium-Ceramic')
 
-# Access properties
-C_E = properties_al.get(Property.YOUNGS_MODULUS.value)
-C_nu = properties_al.get(Property.POISSONS_RATIO.value)
-C_sig0 = properties_al.get(Property.YIELD_STRENGTH.value)
-C_mu = properties_al.get(Property.SHEAR_MODULUS.value)
-lmbda = properties_al.get(Property.FIRST_LAME_PARAMETER.value)
-C_Et = properties_al.get(Property.TANGENT_MODULUS.value)
-C_linear_isotropic_hardening = properties_al.get(Property.LINEAR_ISOTROPIC_HARDENING.value)
-C_nlin_ludwik = properties_al.get(Property.NONLINEAR_LUDWIK_PARAMETER.value)
-C_exponent_ludwik = properties_al.get(Property.EXPONENT_LUDWIK.value)
-C_swift_eps0 = properties_al.get(Property.SWIFT_EPSILON0.value)
-C_exponent_swift = properties_al.get(Property.EXPONENT_SWIFT.value)
+# Access properties for Al6082-T6
+C_E = properties_al.youngs_modulus
+C_nu = properties_al.poisson_ratio
+C_sig0 = properties_al.yield_strength
+C_mu = properties_al.shear_modulus
+lmbda = properties_al.first_lame_parameter
+C_Et = properties_al.tangent_modulus
+C_linear_isotropic_hardening = properties_al.linear_isotropic_hardening
+C_nlin_ludwik = properties_al.nonlinear_ludwik_parameter
+C_exponent_ludwik = properties_al.exponent_ludwik
+C_swift_eps0 = properties_al.swift_epsilon0
+C_exponent_swift = properties_al.exponent_swift
 
-C_E_outer = properties_ceramic.get(Property.YOUNGS_MODULUS.value)
-C_nu_outer = properties_ceramic.get(Property.POISSONS_RATIO.value)
-C_sig0_outer = properties_ceramic.get(Property.YIELD_STRENGTH.value)
-C_mu_outer = properties_ceramic.get(Property.SHEAR_MODULUS.value)
-lmbda_outer = properties_ceramic.get(Property.FIRST_LAME_PARAMETER.value)
-C_Et_outer = properties_ceramic.get(Property.TANGENT_MODULUS.value)
-C_linear_isotropic_hardening_outer = properties_ceramic.get(Property.LINEAR_ISOTROPIC_HARDENING.value)
+# Access properties for Aluminium-Ceramic
+C_E_outer = properties_ceramic.youngs_modulus
+C_nu_outer = properties_ceramic.poisson_ratio
+C_sig0_outer = properties_ceramic.yield_strength
+C_mu_outer = properties_ceramic.shear_modulus
+lmbda_outer = properties_ceramic.first_lame_parameter
+C_Et_outer = properties_ceramic.tangent_modulus
+C_linear_isotropic_hardening_outer = properties_ceramic.linear_isotropic_hardening
+
 
 # Geometry of the domain
 ##########################################
