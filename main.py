@@ -27,15 +27,16 @@ if simulation_config.field_input_file:
     result = input_file.process_input_tensors(simulation_config.field_input_file, plot=True)
 
     # Access thickness and length directly from the result dictionary
-    thickness_al = result["thickness"]
-    length = result["length"]
+    thickness_al = result[input_file.ExternalInput.THICKNESS.value]
+    length = result[input_file.ExternalInput.LENGTH.value]
 else:
     # If it isn't, load the thickness and length from the configuration file
     thickness_al = simulation_config.layer_thickness
     length = simulation_config.length
 
-# Define old coordinates
-old_coordinates = np.array([result['X'], result['Y'], result['Z']]).T
+# # Define old coordinates
+# old_coordinates = np.array([result[input_file.ExternalInput.X.value], result[input_file.ExternalInput.Y.value],
+#                             result[input_file.ExternalInput.Z.value]]).T
 
 # Load material properties
 properties_al = mat_prop.MaterialProperties('material_properties.json', 'Al6082-T6')
@@ -62,7 +63,6 @@ C_mu_outer = properties_ceramic.shear_modulus
 lmbda_outer = properties_ceramic.first_lame_parameter
 C_Et_outer = properties_ceramic.tangent_modulus
 C_linear_isotropic_hardening_outer = properties_ceramic.linear_isotropic_hardening
-
 
 # Geometry of the domain
 ##########################################
