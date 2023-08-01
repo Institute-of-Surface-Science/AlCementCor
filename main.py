@@ -4,6 +4,7 @@ import json
 import matplotlib.pyplot as plt
 import numpy as np
 import warnings
+import os
 from sklearn.cluster import KMeans
 from scipy.interpolate import griddata, RegularGridInterpolator, interp1d
 from ffc.quadrature.deprecation import QuadratureRepresentationDeprecationWarning
@@ -184,90 +185,144 @@ def interpolate_in_time_and_space(old_coordinates, new_coordinates, old_times, n
     return interpolated_values
 
 
+class SimulationFields(Enum):
+    SIMULATION_METADATA = "simulation_metadata"
+    TITLE = "title"
+    DESCRIPTION = "description"
+    DATE = "date"
+    AUTHOR = "author"
+
+    SIMULATION_PARAMETERS = "simulation_parameters"
+    USE_TWO_MATERIAL_LAYERS = "use_two_material_layers"
+    INTEGRATION_TIME_LIMIT = "integration_time_limit"
+    TOTAL_TIMESTEPS = "total_timesteps"
+    CHOSEN_HARDENING_MODEL = "chosen_hardening_model"
+    FIELD_INPUT_FILE = "field_input_file"
+
+    MATERIAL_DIMENSIONS = "material_dimensions"
+    LAYER_THICKNESS = "layer_thickness"
+    LENGTH = "length"
+    WIDTH = "width"
+
+
 class SimulationConfig:
     """
-    A class that encapsulates the simulation configuration parameters from a JSON file.
+    A class used to represent the simulation configuration which encapsulates
+    the parameters required for a simulation.
 
-    Attributes:
+    The configuration parameters are loaded from a JSON file. The JSON keys are
+    standardized and accessed via an enumeration, `SimulationFields`.
+
+    This class uses Python properties to provide a clean, Pythonic interface
+    for accessing configuration data.
+
+    Attributes
+    ----------
+    _config : dict
+        A dictionary to store the configuration parameters read from the JSON file.
+
+    Properties
     ----------
     title : str
-        Title of the simulation.
+        Title of the simulation (getter only).
     description : str
-        Description of the simulation.
+        Description of the simulation (getter only).
     date : str
-        Date when the simulation configuration was created.
+        Date when the simulation configuration was created (getter only).
     author : str
-        Author who created the simulation configuration.
+        Author who created the simulation configuration (getter only).
     use_two_material_layers : bool
-        Specifies whether to use two material layers in the simulation.
+        Specifies whether to use two material layers in the simulation (getter only).
     integration_time_limit : int
-        Specifies the endpoint for the time integration in the simulation.
+        Specifies the endpoint for the time integration in the simulation (getter only).
     total_timesteps : int
-        Specifies the total number of timesteps for the simulation.
+        Specifies the total number of timesteps for the simulation (getter only).
     chosen_hardening_model : str
-        Specifies the type of hardening model to be used in the simulation.
+        Specifies the type of hardening model to be used in the simulation (getter only).
     field_input_file : str
-        Specifies the file from which to read the simulation field input data.
+        Specifies the file from which to read the simulation field input data (getter only).
     layer_thickness : float
-        Specifies the thickness of the material layer in the simulation.
+        Specifies the thickness of the material layer in the simulation (getter only).
     length : float
-        Specifies the length of the material in the simulation.
+        Specifies the length of the material in the simulation (getter only).
     width : float
-        Specifies the width of the material in the simulation.
+        Specifies the width of the material in the simulation (getter only).
 
-    Methods:
+    Methods
     -------
     __init__(self, config_file: str)
-        Initializes a SimulationConfig object by loading a JSON file.
+        Initializes a SimulationConfig object by loading a JSON file and populating the _config dictionary.
+    _load_config(config_file)
+        Reads the JSON file, checks for file existence and valid JSON format and returns the configuration dictionary.
     """
 
     def __init__(self, config_file: str):
         """Initializes a SimulationConfig object."""
-        try:
-            with open(config_file) as json_file:
+        self._config = self._load_config(config_file)
+
+    @staticmethod
+    def _load_config(config_file):
+        if not os.path.exists(config_file):
+            raise FileNotFoundError(f"Configuration file '{config_file}' not found.")
+        with open(config_file) as json_file:
+            try:
                 config = json.load(json_file)
-        except FileNotFoundError:
-            print(f"Configuration file '{config_file}' not found.")
-            raise
-        except ValueError as e:
-            print(f"Invalid JSON in configuration file '{config_file}': {e}")
-            raise
+            except json.JSONDecodeError:
+                raise ValueError(f"Invalid JSON in configuration file '{config_file}'.")
+        return config
 
-        # Metadata
-        try:
-            self.title: str = config["simulation_metadata"]["title"]
-            self.description: str = config["simulation_metadata"]["description"]
-            self.date: str = config["simulation_metadata"]["date"]
-            self.author: str = config["simulation_metadata"]["author"]
-        except KeyError as e:
-            print(f"Missing key in simulation metadata: {e}")
-            raise
+    @property
+    def title(self):
+        return self._config[SimulationFields.SIMULATION_METADATA.value][SimulationFields.TITLE.value]
 
-        # Simulation Parameters
-        try:
-            self.use_two_material_layers: bool = config["simulation_parameters"]["use_two_material_layers"]
-            self.integration_time_limit: int = config["simulation_parameters"]["integration_time_limit"]
-            self.total_timesteps: int = config["simulation_parameters"]["total_timesteps"]
-            self.chosen_hardening_model: str = config["simulation_parameters"]["chosen_hardening_model"]
-            self.field_input_file: str = config["simulation_parameters"]["field_input_file"]
-        except KeyError as e:
-            print(f"Missing key in simulation parameters: {e}")
-            raise
+    @property
+    def description(self):
+        return self._config[SimulationFields.SIMULATION_METADATA.value][SimulationFields.DESCRIPTION.value]
 
-        # Material Dimensions
-        try:
-            self.layer_thickness: float = config["material_dimensions"]["layer_thickness"]
-            self.length: float = config["material_dimensions"]["length"]
-            self.width: float = config["material_dimensions"]["width"]
-        except KeyError as e:
-            print(f"Missing key in material dimensions: {e}")
-            raise
+    @property
+    def date(self):
+        return self._config[SimulationFields.SIMULATION_METADATA.value][SimulationFields.DATE.value]
+
+    @property
+    def author(self):
+        return self._config[SimulationFields.SIMULATION_METADATA.value][SimulationFields.AUTHOR.value]
+
+    @property
+    def use_two_material_layers(self):
+        return self._config[SimulationFields.SIMULATION_PARAMETERS.value][SimulationFields.USE_TWO_MATERIAL_LAYERS.value]
+
+    @property
+    def integration_time_limit(self):
+        return self._config[SimulationFields.SIMULATION_PARAMETERS.value][SimulationFields.INTEGRATION_TIME_LIMIT.value]
+
+    @property
+    def total_timesteps(self):
+        return self._config[SimulationFields.SIMULATION_PARAMETERS.value][SimulationFields.TOTAL_TIMESTEPS.value]
+
+    @property
+    def chosen_hardening_model(self):
+        return self._config[SimulationFields.SIMULATION_PARAMETERS.value][SimulationFields.CHOSEN_HARDENING_MODEL.value]
+
+    @property
+    def field_input_file(self):
+        return self._config[SimulationFields.SIMULATION_PARAMETERS.value][SimulationFields.FIELD_INPUT_FILE.value]
+
+    @property
+    def layer_thickness(self):
+        return self._config[SimulationFields.MATERIAL_DIMENSIONS.value][SimulationFields.LAYER_THICKNESS.value]
+
+    @property
+    def length(self):
+        return self._config[SimulationFields.MATERIAL_DIMENSIONS.value][SimulationFields.LENGTH.value]
+
+    @property
+    def width(self):
+        return self._config[SimulationFields.MATERIAL_DIMENSIONS.value][SimulationFields.WIDTH.value]
 
 
 # Initialize a SimulationConfig object using the configuration file
 simulation_config = SimulationConfig('simulation_config.json')
 
-# Now you can access the values like this
 two_layers = simulation_config.use_two_material_layers
 endTime = simulation_config.integration_time_limit
 no_of_timesteps = simulation_config.total_timesteps
@@ -279,12 +334,13 @@ if simulation_config.field_input_file:
     result = process_input_tensors(simulation_config.field_input_file, plot=True)
 
     # Access thickness and length directly from the result dictionary
-    thickness_al = result['thickness']
-    length = result['length']
+    thickness_al = result[SimulationFields.THICKNESS.value]
+    length = result[SimulationFields.LENGTH.value]
 else:
     # If it isn't, load the thickness and length from the configuration file
     thickness_al = simulation_config.layer_thickness
     length = simulation_config.length
+
 
 
 # Define old coordinates
