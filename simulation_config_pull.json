@@ -1,11 +1,20 @@
 {
+    "simulation_metadata": {
+        "title": "Material Stress Analysis",
+        "description": "Simulation parameters for a two-layer material stress analysis without field input file.",
+        "date": "2023-08-01",
+        "author": "Sven Berger"
+    },
     "simulation_parameters": {
-        "use_two_layers": true,
-        "time_integration_endpoint": 175000,
-        "number_of_timesteps": 10000,
-        "selected_hardening_model": "linear",
-        "output_json_file": null,
-        "thickness_al": 2.5,
-        "length": 1.5
+        "use_two_material_layers": true,
+        "integration_time_limit": 175000,
+        "total_timesteps": 10000,
+        "chosen_hardening_model": "linear",
+        "field_input_file": null
+    },
+    "material_dimensions": {
+        "layer_thickness": 2.5,
+        "length": 1.5,
+        "width": null
     }
 }
