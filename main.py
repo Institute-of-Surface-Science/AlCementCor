@@ -31,6 +31,36 @@ def interpolate_values(coordinates, values, new_coordinates):
 
 # Function to interpolate a time series
 def interpolate_timeseries(old_coordinates, timeseries, new_coordinates):
+    """
+    Interpolates a time series between old coordinates to new coordinates.
+
+    Parameters:
+    ----------
+    old_coordinates : array_like
+        Original coordinates (1D array) corresponding to the provided time series.
+
+    timeseries : array_like
+        Time series to be interpolated. It is a 2D array where each row represents
+        the value of the timeseries at the corresponding old coordinate and each
+        column represents a time step.
+
+    new_coordinates : array_like
+        New coordinates (1D array) to which the timeseries will be interpolated.
+
+    Returns:
+    -------
+    numpy.ndarray
+        A 2D array of the interpolated time series. Each row corresponds to a new
+        coordinate and each column corresponds to a time step.
+
+    Notes:
+    ------
+    The function uses linear interpolation to generate new values.
+
+    The interpolation function is assumed to be 'interpolate_values', which must be
+    previously defined and take three arguments: old_coordinates, values, and new_coordinates.
+
+    """
     n_time_steps = timeseries.shape[1]
     new_timeseries = []
     for t in range(n_time_steps):
