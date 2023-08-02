@@ -89,7 +89,6 @@ def setup_numerical_stuff(simulation_config, mesh):
 def extract_material_properties(properties_al, properties_ceramic):
     """Extracts required material properties from MaterialProperties objects."""
     # Access properties for Al6082-T6
-    C_mu = properties_al.shear_modulus
     lmbda = properties_al.first_lame_parameter
     C_Et = properties_al.tangent_modulus
     C_linear_isotropic_hardening = properties_al.linear_isotropic_hardening
@@ -99,12 +98,11 @@ def extract_material_properties(properties_al, properties_ceramic):
     C_exponent_swift = properties_al.exponent_swift
 
     # Access properties for Aluminium-Ceramic
-    C_mu_outer = properties_ceramic.shear_modulus
     lmbda_outer = properties_ceramic.first_lame_parameter
     C_Et_outer = properties_ceramic.tangent_modulus
     C_linear_isotropic_hardening_outer = properties_ceramic.linear_isotropic_hardening
 
-    return C_mu, lmbda, C_Et, C_linear_isotropic_hardening, C_nlin_ludwik, C_exponent_ludwik, C_swift_eps0, C_exponent_swift, C_mu_outer, lmbda_outer, C_Et_outer, C_linear_isotropic_hardening_outer
+    return lmbda, C_Et, C_linear_isotropic_hardening, C_nlin_ludwik, C_exponent_ludwik, C_swift_eps0, C_exponent_swift, lmbda_outer, C_Et_outer, C_linear_isotropic_hardening_outer
 
 
 def plot_vm(i, sig_eq_p):
@@ -188,7 +186,7 @@ ppos = lambda x: (x + abs(x)) / 2.
 # https://www.dynasupport.com/tutorial/computational-plasticity/radial-return
 # https://www.dynasupport.com/tutorial/computational-plasticity/generalizing-the-yield-function
 # https://www.dynasupport.com/tutorial/computational-plasticity/the-consistent-tangent-matrix
-def proj_sig(deps, old_sig, old_p, sig_0_local, C_linear_h_local, mu_local, C_mu, lmbda_local_DG, mu_local_DG):
+def proj_sig(deps, old_sig, old_p, sig_0_local, C_linear_h_local, mu_local, lmbda_local_DG, mu_local_DG):
     # update stress from change in strain (deps)
     sig_n = as_3D_tensor(old_sig)
     sig_elas = sig_n + sigma(deps, lmbda_local_DG, mu_local_DG)
@@ -233,7 +231,7 @@ def proj_sig(deps, old_sig, old_p, sig_0_local, C_linear_h_local, mu_local, C_mu
 
     # radial return mapping?
     # in elastic case = 0
-    beta = 3 * C_mu * dp / sig_eq
+    beta = 3 * mu_local * dp / sig_eq
 
     # updated cauchy stress tensor
     # in elastic case = sig_elas
@@ -286,8 +284,8 @@ def main():
     simulation_config, properties_substrate, properties_layer = load_simulation_config()
 
     # Extract material properties
-    (C_mu, lmbda, C_Et, C_linear_isotropic_hardening, C_nlin_ludwik, C_exponent_ludwik, C_swift_eps0,
-     C_exponent_swift, C_mu_outer, lmbda_outer, C_Et_outer,
+    (lmbda, C_Et, C_linear_isotropic_hardening, C_nlin_ludwik, C_exponent_ludwik, C_swift_eps0,
+     C_exponent_swift, lmbda_outer, C_Et_outer,
      C_linear_isotropic_hardening_outer) = extract_material_properties(properties_substrate, properties_layer)
 
     # Summary of configuration and material properties
@@ -314,7 +312,7 @@ def main():
 
     # calculate local mu
     mu_local_DG = fe.Function(DG)
-    assign_local_values(C_mu, C_mu_outer, mu_local_DG, DG, simulation_config)
+    assign_local_values(properties_substrate.shear_modulus, properties_layer.shear_modulus, mu_local_DG, DG, simulation_config)
 
     lmbda_local_DG = fe.Function(DG)
     assign_local_values(lmbda, lmbda_outer, lmbda_local_DG, DG, simulation_config)
@@ -339,7 +337,7 @@ def main():
     time_step = simulation_config.integration_time_limit / (simulation_config.total_timesteps)
 
     sig_0_local = assign_layer_values(properties_substrate.yield_strength, properties_layer.yield_strength, W0, simulation_config)
-    mu_local = assign_layer_values(C_mu, C_mu_outer, W0, simulation_config)
+    mu_local = assign_layer_values(properties_substrate.shear_modulus, properties_layer.shear_modulus, W0, simulation_config)
     C_linear_h_local = assign_layer_values(C_linear_isotropic_hardening, C_linear_isotropic_hardening_outer, W0,
                                            simulation_config)
 
@@ -373,7 +371,7 @@ def main():
             deps = eps(Du)
 
             sig_, n_elas_, beta_, dp_, sig_hyd_ = proj_sig(deps, sig_old, p, sig_0_local, C_linear_h_local, mu_local,
-                                                           C_mu, lmbda_local_DG, mu_local_DG)
+                                                           lmbda_local_DG, mu_local_DG)
             local_project(sig_, W, dxm, sig)
             local_project(n_elas_, W, dxm, n_elas)
             local_project(beta_, W0, dxm, beta)
