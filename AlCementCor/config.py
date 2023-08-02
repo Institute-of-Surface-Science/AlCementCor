@@ -4,6 +4,13 @@ from enum import Enum
 from typing import Any, Dict
 
 
+class Direction(Enum):
+    X = [1, 0, 0]
+    NEG_X = [-1, 0, 0]
+    Y = [0, 1, 0]
+    NEG_Y = [0, -1, 0]
+
+
 class SimulationFields(Enum):
     """
     An enumeration that provides string constants for accessing fields in a simulation configuration file.
@@ -233,13 +240,7 @@ class SimulationConfig:
     @property
     def layer_1_direction(self) -> Any:
         direction = self.get(SimulationFields.LAYER_1.value, SimulationFields.DIRECTION.value, None)
-        direction_map = {
-            'X': [1, 0, 0],
-            '-X': [-1, 0, 0],
-            'Y': [0, 1, 0],
-            '-Y': [0, -1, 0],
-        }
-        return direction_map.get(direction, [0, 0, 0])  # default to [0, 0, 0] if direction is not recognized
+        return Direction[direction.upper()].value if direction else [0, 0, 0]
 
     @property
     def mesh_resolution_x(self) -> Any:
