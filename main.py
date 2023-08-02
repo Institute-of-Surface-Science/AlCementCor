@@ -18,6 +18,19 @@ warnings.simplefilter("once", QuadratureRepresentationDeprecationWarning)
 
 def summarize_and_print_config(simulation_config: config.SimulationConfig,
                                materials: List[mat_prop.MaterialProperties]) -> None:
+    logo = """
+        ___    ________                          __  ______          
+       /   |  / / ____/__  ____ ___  ___  ____  / /_/ ____/___  _____
+      / /| | / / /   / _ \/ __ `__ \/ _ \/ __ \/ __/ /   / __ \/ ___/
+     / ___ |/ / /___/  __/ / / / / /  __/ / / / /_/ /___/ /_/ / /    
+    /_/  |_/_/\____/\___/_/ /_/ /_/\___/_/ /_/\__/\____/\____/_/     
+    by Sven Berger and Aravinth Ravikumar
+    Helmholtz-Center hereon, Institute of Surface Science 
+    Copyright 2023
+        """
+
+    print(logo)
+
     # Print simulation configuration
     print("\nSimulation Configuration:")
     print("---------------------------------------")

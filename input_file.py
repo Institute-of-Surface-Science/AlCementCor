@@ -102,11 +102,9 @@ def process_input_tensors(filename, plot=False):
     # Calculate the thickness of the aluminium layer
     y_coordinates_centroids = kmeans.cluster_centers_[:, 1]
     thickness_aluminium = np.abs(np.diff(y_coordinates_centroids))
-    print(f"Aluminium layer thickness: {thickness_aluminium[0]}")
 
     # Calculate the length of the area
     length = np.ptp(x_coordinates_0)
-    print(f"Area length: {length}")
 
     # If 'plot' is True, plot the node data in 3D
     if plot:
