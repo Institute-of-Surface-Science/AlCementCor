@@ -262,8 +262,6 @@ def check_convergence(nRes, nRes0, tol, niter, Nitermax):
 def main():
     # Load configuration and material properties
     simulation_config, properties_substrate, properties_layer = load_simulation_config()
-
-    # Summary of configuration and material properties
     summarize_and_print_config(simulation_config, [properties_substrate, properties_layer])
 
     # Geometry setup
