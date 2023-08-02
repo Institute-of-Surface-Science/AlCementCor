@@ -67,6 +67,10 @@ class SimulationFields(Enum):
     THICKNESS = "thickness"
     DIRECTION = "direction"
 
+    MESH_RESOLUTION = "mesh_resolution"
+    RESOLUTION_X = "x"
+    RESOLUTION_Y = "y"
+
 
 class SimulationConfig:
     """
@@ -203,3 +207,13 @@ class SimulationConfig:
             '-Y': [0, -1, 0],
         }
         return direction_map.get(direction, [0, 0, 0])  # default to [0, 0, 0] if direction is not recognized
+
+    @property
+    def mesh_resolution_x(self):
+        return self._config[SimulationFields.SIMULATION_PARAMETERS.value][SimulationFields.MESH_RESOLUTION.value][
+            SimulationFields.RESOLUTION_X.value]
+
+    @property
+    def mesh_resolution_y(self):
+        return self._config[SimulationFields.SIMULATION_PARAMETERS.value][SimulationFields.MESH_RESOLUTION.value][
+            SimulationFields.RESOLUTION_Y.value]

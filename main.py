@@ -12,7 +12,6 @@ from AlCementCor.material_properties import *
 fe.parameters["form_compiler"]["representation"] = 'quadrature'
 warnings.simplefilter("once", QuadratureRepresentationDeprecationWarning)
 
-
 # Initialize a SimulationConfig object using the configuration file
 simulation_config = SimulationConfig('simulation_config.json')
 
@@ -77,16 +76,12 @@ if two_layers:
 l_x = simulation_config.width + l_layer_x
 l_y = simulation_config.length + l_layer_y
 
-# Discretization of the domain
-n_x = 200
-n_y = 100
-n_z = 2  # Number of elements
-
 # C_strain_rate = fe.Constant(0.0001)  # 1/s
 C_strain_rate = fe.Constant(0.000001)  # 0.01/s
 
 # Initialize the mesh
-mesh = fe.RectangleMesh(fe.Point(0.0, 0.0), fe.Point(l_x, l_y), n_x, n_y)
+mesh = fe.RectangleMesh(fe.Point(0.0, 0.0), fe.Point(l_x, l_y), simulation_config.mesh_resolution_x,
+                        simulation_config.mesh_resolution_y)
 
 # Declare Numerical Stuff
 deg_u, deg_stress = 2, 2

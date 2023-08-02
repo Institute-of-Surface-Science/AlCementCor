@@ -10,7 +10,11 @@
         "integration_time_limit": 175000,
         "total_timesteps": 10000,
         "hardening_model": "linear",
-        "field_input_file": null
+        "field_input_file": null,
+        "mesh_resolution": {
+            "x": 50,
+            "y": 100
+        }
     },
     "material_dimensions": {
         "length": 90.0,
