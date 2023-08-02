@@ -112,6 +112,7 @@ def extract_material_properties(properties_al, properties_ceramic):
 
     return C_E, C_nu, C_sig0, C_mu, lmbda, C_Et, C_linear_isotropic_hardening, C_nlin_ludwik, C_exponent_ludwik, C_swift_eps0, C_exponent_swift, C_E_outer, C_nu_outer, C_sig0_outer, C_mu_outer, lmbda_outer, C_Et_outer, C_linear_isotropic_hardening_outer
 
+
 def plot_vm(i, sig_eq_p):
     plt.figure()
     # plt.plot(results[:, 0], results[:, 1], "-o")
@@ -122,6 +123,7 @@ def plot_vm(i, sig_eq_p):
     # plt.show()
     plt.savefig("vm" + str(i) + ".svg")
     plt.close()
+
 
 # Load configuration and material properties
 simulation_config, properties_substrate, properties_layer = load_simulation_config()
@@ -281,12 +283,14 @@ dxm = ufl.dx(metadata=metadata)
 v = fe.TrialFunction(V)
 u_ = fe.TestFunction(V)
 
+
 def assign_local_values(values, outer_values, local_DG):
     dofmap = DG.tabulate_dof_coordinates()[:]
     vec = np.zeros(dofmap.shape[0])
     vec[:] = values
     vec[dofmap[:, 0] > simulation_config.width] = outer_values
     local_DG.vector()[:] = vec
+
 
 # calculate local mu
 mu_local_DG = fe.Function(DG)
@@ -331,25 +335,31 @@ class set_layer(fe.UserExpression):
     def value_shape(self):
         return ()
 
+
 def assign_layer_values(inner_value, outer_value, W0):
     layer = set_layer(inner_value, outer_value)
     return fe.interpolate(layer, W0)
+
 
 sig_0_local = assign_layer_values(C_sig0, C_sig0_outer, W0)
 mu_local = assign_layer_values(C_mu, C_mu_outer, W0)
 C_linear_h_local = assign_layer_values(C_linear_isotropic_hardening, C_linear_isotropic_hardening_outer, W0)
 
-results = []
-stress_max_t = []
-stress_max_t += [0]
-stress_mean_t = []
-stress_mean_t += [0]
-disp_t = []
-disp_t += [0]
-time_step_adjusted = False
+# Initializing result and time step lists
+results = [(0, 0)]
+stress_max_t = [0]
+stress_mean_t = [0]
+disp_t = [0]
+
 time = 0
 i = 0
 not_adjusted_count = 0
+
+
+def check_convergence(nRes, nRes0, tol, niter, Nitermax):
+    return niter == 0 or (nRes0 > 0 and nRes / nRes0 > tol and niter < Nitermax)
+
+
 # for (i, time) in enumerate(time_steps):
 while time < simulation_config.integration_time_limit:
     time += time_step
@@ -375,7 +385,7 @@ while time < simulation_config.integration_time_limit:
 
     niter = 0
     # n_resold = 1000
-    while niter == 0 or (nRes0 > 0 and nRes / nRes0 > tol and niter < Nitermax):
+    while niter == 0 or check_convergence(nRes, nRes0, tol, niter, Nitermax):
         # solve for du
         fe.solve(A, du.vector(), Res, "mumps")
 
