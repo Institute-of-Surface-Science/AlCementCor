@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import warnings
 from ffc.quadrature.deprecation import QuadratureRepresentationDeprecationWarning
+from tabulate import tabulate
+from typing import List
 import config
 import input_file
 import material_properties as mat_prop
@@ -14,19 +16,29 @@ fe.parameters["form_compiler"]["representation"] = 'quadrature'
 warnings.simplefilter("once", QuadratureRepresentationDeprecationWarning)
 
 
-def summarize_and_print_config(materials):
-    properties = ['youngs_modulus', 'poisson_ratio', 'yield_strength', 'shear_modulus',
-                  'first_lame_parameter', 'tangent_modulus', 'linear_isotropic_hardening',
-                  'nonlinear_ludwik_parameter', 'exponent_ludwik', 'swift_epsilon0', 'exponent_swift']
+def summarize_and_print_config(materials: List[mat_prop.MaterialProperties]) -> None:
+    # Define the list of property keys that we're interested in.
+    property_keys = ["youngs_modulus", "poisson_ratio", "yield_strength",
+                     "shear_modulus", "first_lame_parameter", "tangent_modulus",
+                     "linear_isotropic_hardening", "nonlinear_ludwik_parameter",
+                     "exponent_ludwik", "swift_epsilon0", "exponent_swift"]
 
-    for material in materials:
-        print(f'\nMaterial: {material.material}\n' + '-'*40)
-        for prop in properties:
-            try:
-                value = getattr(material, prop)
-                print(f'{prop.replace("_", " ").title()}: {value}')
-            except AttributeError:
-                print(f'{prop.replace("_", " ").title()}: Property not defined')
+    # Define a list of column headers for our table
+    headers = ["Property"] + [material.material for material in materials]
+
+    # Define a list to store our rows of data
+    rows = []
+
+    # For each property, retrieve the value from each material and add them as a row in our table.
+    for prop in property_keys:
+        row = [prop]  # Start with the property name
+        for material in materials:
+            value = getattr(material, prop, None)
+            row.append(value)  # Append each property value to the row
+        rows.append(row)
+
+    # Now we have all the data, let's print it as a table
+    print(tabulate(rows, headers=headers, tablefmt="pipe", floatfmt=".2f", missingval="N/A"))
 
 
 # Initialize a SimulationConfig object using the configuration file
@@ -81,7 +93,6 @@ C_Et_outer = properties_ceramic.tangent_modulus
 C_linear_isotropic_hardening_outer = properties_ceramic.linear_isotropic_hardening
 
 summarize_and_print_config([properties_al, properties_ceramic])
-
 
 # Length refers to the y-length
 # Width refers to the x-length
