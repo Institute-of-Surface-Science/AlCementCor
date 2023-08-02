@@ -71,6 +71,7 @@ class MaterialProperties:
             The specific material to load properties for.
         """
         self.properties = self.load_and_validate(json_file, material)
+        self.material = material
 
     @staticmethod
     def load_and_validate(json_file: str, material: str) -> Dict[str, Any]:
@@ -122,53 +123,64 @@ class MaterialProperties:
 
         return properties
 
-    def get(self, key: str) -> Any:
-        try:
-            return self.properties[key]
-        except KeyError:
-            available_keys = ", ".join(self.properties.keys())
-            raise KeyError(f"Key '{key}' not found in material properties. Available keys are: {available_keys}")
+    def get(self, key: str, default=None) -> Any:
+        """
+        Get the value of the given property.
+
+        Parameters:
+        ----------
+        key : str
+            The name of the property to get.
+        default : Any, optional
+            The value to return if the property does not exist.
+
+        Returns:
+        -------
+        Any
+            The value of the property, if it exists. Otherwise, the default value.
+        """
+        return self.properties.get(key, default)
 
     @property
     def youngs_modulus(self) -> Any:
-        return self.get(Property.YOUNGS_MODULUS.value)
+        return self.get(Property.YOUNGS_MODULUS.value, None)
 
     @property
     def poisson_ratio(self) -> Any:
-        return self.get(Property.POISSONS_RATIO.value)
+        return self.get(Property.POISSONS_RATIO.value, None)
 
     @property
     def yield_strength(self) -> Any:
-        return self.get(Property.YIELD_STRENGTH.value)
+        return self.get(Property.YIELD_STRENGTH.value, None)
 
     @property
     def shear_modulus(self) -> Any:
-        return self.get(Property.SHEAR_MODULUS.value)
+        return self.get(Property.SHEAR_MODULUS.value, None)
 
     @property
     def first_lame_parameter(self) -> Any:
-        return self.get(Property.FIRST_LAME_PARAMETER.value)
+        return self.get(Property.FIRST_LAME_PARAMETER.value, None)
 
     @property
     def tangent_modulus(self) -> Any:
-        return self.get(Property.TANGENT_MODULUS.value)
+        return self.get(Property.TANGENT_MODULUS.value, None)
 
     @property
     def linear_isotropic_hardening(self) -> Any:
-        return self.get(Property.LINEAR_ISOTROPIC_HARDENING.value)
+        return self.get(Property.LINEAR_ISOTROPIC_HARDENING.value, None)
 
     @property
     def nonlinear_ludwik_parameter(self) -> Any:
-        return self.get(Property.NONLINEAR_LUDWIK_PARAMETER.value)
+        return self.get(Property.NONLINEAR_LUDWIK_PARAMETER.value, None)
 
     @property
     def exponent_ludwik(self) -> Any:
-        return self.get(Property.EXPONENT_LUDWIK.value)
+        return self.get(Property.EXPONENT_LUDWIK.value, None)
 
     @property
     def swift_epsilon0(self) -> Any:
-        return self.get(Property.SWIFT_EPSILON0.value)
+        return self.get(Property.SWIFT_EPSILON0.value, None)
 
     @property
     def exponent_swift(self) -> Any:
-        return self.get(Property.EXPONENT_SWIFT.value)
+        return self.get(Property.EXPONENT_SWIFT.value, None)

@@ -13,6 +13,22 @@ import interpolate
 fe.parameters["form_compiler"]["representation"] = 'quadrature'
 warnings.simplefilter("once", QuadratureRepresentationDeprecationWarning)
 
+
+def summarize_and_print_config(materials):
+    properties = ['youngs_modulus', 'poisson_ratio', 'yield_strength', 'shear_modulus',
+                  'first_lame_parameter', 'tangent_modulus', 'linear_isotropic_hardening',
+                  'nonlinear_ludwik_parameter', 'exponent_ludwik', 'swift_epsilon0', 'exponent_swift']
+
+    for material in materials:
+        print(f'\nMaterial: {material.material}\n' + '-'*40)
+        for prop in properties:
+            try:
+                value = getattr(material, prop)
+                print(f'{prop.replace("_", " ").title()}: {value}')
+            except AttributeError:
+                print(f'{prop.replace("_", " ").title()}: Property not defined')
+
+
 # Initialize a SimulationConfig object using the configuration file
 simulation_config = config.SimulationConfig('simulation_config.json')
 
@@ -63,6 +79,9 @@ C_mu_outer = properties_ceramic.shear_modulus
 lmbda_outer = properties_ceramic.first_lame_parameter
 C_Et_outer = properties_ceramic.tangent_modulus
 C_linear_isotropic_hardening_outer = properties_ceramic.linear_isotropic_hardening
+
+summarize_and_print_config([properties_al, properties_ceramic])
+
 
 # Length refers to the y-length
 # Width refers to the x-length
