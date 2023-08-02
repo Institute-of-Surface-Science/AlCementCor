@@ -301,27 +301,22 @@ class set_layer_2(fe.UserExpression):
         return (2,)
 
 
+def assign_local_values(values, outer_values, local_DG):
+    dofmap = DG.tabulate_dof_coordinates()[:]
+    vec = np.zeros(dofmap.shape[0])
+    vec[:] = values
+    vec[dofmap[:, 0] > simulation_config.width] = outer_values
+    local_DG.vector()[:] = vec
+
 # calculate local mu
 mu_local_DG = fe.Function(DG)
-dofmap = DG.tabulate_dof_coordinates()[:]
-mu_vec = np.zeros(dofmap.shape[0])
-mu_vec[:] = C_mu
-mu_vec[dofmap[:, 0] > simulation_config.width] = C_mu_outer
-mu_local_DG.vector()[:] = mu_vec
+assign_local_values(C_mu, C_mu_outer, mu_local_DG)
 
 lmbda_local_DG = fe.Function(DG)
-dofmap = DG.tabulate_dof_coordinates()[:]
-lmbda_vec = np.zeros(dofmap.shape[0])
-lmbda_vec[:] = lmbda
-lmbda_vec[dofmap[:, 0] > simulation_config.width] = lmbda_outer
-lmbda_local_DG.vector()[:] = lmbda_vec
+assign_local_values(lmbda, lmbda_outer, lmbda_local_DG)
 
 C_linear_h_local_DG = fe.Function(DG)
-dofmap = DG.tabulate_dof_coordinates()[:]
-C_linear_h_vec = np.zeros(dofmap.shape[0])
-C_linear_h_vec[:] = C_linear_isotropic_hardening
-C_linear_h_vec[dofmap[:, 0] > simulation_config.width] = C_linear_isotropic_hardening_outer
-C_linear_h_local_DG.vector()[:] = C_linear_h_vec
+assign_local_values(C_linear_isotropic_hardening, C_linear_isotropic_hardening_outer, C_linear_h_local_DG)
 
 a_Newton = fe.inner(eps(v), sigma_tang(eps(u_))) * dxm
 # res = -inner(eps(u_), as_3D_tensor(sig)) * dxm + F_ext(u_)
