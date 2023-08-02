@@ -124,6 +124,7 @@ def plot_vm(i, sig_eq_p):
     plt.savefig("vm" + str(i) + ".svg")
     plt.close()
 
+
 # Util
 ########################################################################
 def as_3D_tensor(X):
@@ -174,7 +175,8 @@ def sigma(strain, lmbda_local_DG, mu_local_DG):
 
 def sigma_tang(e, n_elas, mu_local_DG, C_linear_h_local_DG, beta, lmbda_local_DG):
     N_elas = as_3D_tensor(n_elas)
-    return sigma(e, lmbda_local_DG, mu_local_DG) - 3 * mu_local_DG * (3 * mu_local_DG / (3 * mu_local_DG + C_linear_h_local_DG) - beta) * fe.inner(
+    return sigma(e, lmbda_local_DG, mu_local_DG) - 3 * mu_local_DG * (
+                3 * mu_local_DG / (3 * mu_local_DG + C_linear_h_local_DG) - beta) * fe.inner(
         N_elas, e) * N_elas - 2 * mu_local_DG * beta * fe.dev(e)
 
 
@@ -258,6 +260,7 @@ def assign_local_values(values, outer_values, local_DG, DG, simulation_config):
     vec[dofmap[:, 0] > simulation_config.width] = outer_values
     local_DG.vector()[:] = vec
 
+
 # assign local values to the layers
 def assign_layer_values(inner_value, outer_value, W0, simulation_config):
     class set_layer(fe.UserExpression):
@@ -278,7 +281,6 @@ def assign_layer_values(inner_value, outer_value, W0, simulation_config):
 
     layer = set_layer(inner_value, outer_value, simulation_config)
     return fe.interpolate(layer, W0)
-
 
 
 def check_convergence(nRes, nRes0, tol, niter, Nitermax):
@@ -325,9 +327,11 @@ def main():
     assign_local_values(lmbda, lmbda_outer, lmbda_local_DG, DG, simulation_config)
 
     C_linear_h_local_DG = fe.Function(DG)
-    assign_local_values(C_linear_isotropic_hardening, C_linear_isotropic_hardening_outer, C_linear_h_local_DG, DG, simulation_config)
+    assign_local_values(C_linear_isotropic_hardening, C_linear_isotropic_hardening_outer, C_linear_h_local_DG, DG,
+                        simulation_config)
 
-    a_Newton = fe.inner(eps(v), sigma_tang(eps(u_), n_elas, mu_local_DG, C_linear_h_local_DG, beta, lmbda_local_DG)) * dxm
+    a_Newton = fe.inner(eps(v),
+                        sigma_tang(eps(u_), n_elas, mu_local_DG, C_linear_h_local_DG, beta, lmbda_local_DG)) * dxm
     res = -fe.inner(eps(u_), as_3D_tensor(sig)) * dxm
 
     # cellV = local_project(fe.CellVolume(mesh), P0)
@@ -343,7 +347,8 @@ def main():
 
     sig_0_local = assign_layer_values(C_sig0, C_sig0_outer, W0, simulation_config)
     mu_local = assign_layer_values(C_mu, C_mu_outer, W0, simulation_config)
-    C_linear_h_local = assign_layer_values(C_linear_isotropic_hardening, C_linear_isotropic_hardening_outer, W0, simulation_config)
+    C_linear_h_local = assign_layer_values(C_linear_isotropic_hardening, C_linear_isotropic_hardening_outer, W0,
+                                           simulation_config)
 
     # Initializing result and time step lists
     results = [(0, 0)]
@@ -374,7 +379,8 @@ def main():
             Du.assign(Du + du)
             deps = eps(Du)
 
-            sig_, n_elas_, beta_, dp_, sig_hyd_ = proj_sig(deps, sig_old, p, sig_0_local, C_linear_h_local, mu_local, C_mu, lmbda_local_DG, mu_local_DG)
+            sig_, n_elas_, beta_, dp_, sig_hyd_ = proj_sig(deps, sig_old, p, sig_0_local, C_linear_h_local, mu_local,
+                                                           C_mu, lmbda_local_DG, mu_local_DG)
             local_project(sig_, W, dxm, sig)
             local_project(n_elas_, W, dxm, n_elas)
             local_project(beta_, W0, dxm, beta)
@@ -424,10 +430,9 @@ def main():
         file_results.write(p_avg, time)
         results += [(np.abs(u(l_x / 2, l_y)[1]) / l_y, time)]
 
+
 if __name__ == "__main__":
     main()
-
-
 
 # ax = fe.plot(u, mode="displacement")
 # cbar = plt.colorbar(ax)
