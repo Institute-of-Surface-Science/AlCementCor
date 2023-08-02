@@ -1,4 +1,5 @@
 import json
+import os
 from enum import Enum
 from typing import Any, Dict
 from jsonschema import validate, ValidationError
@@ -86,11 +87,28 @@ class MaterialProperties:
 
     @staticmethod
     def load_schema() -> Dict[str, Any]:
-        with open('material_properties.schema') as f:
+        schema_file = '../material_properties.schema'
+        if not os.path.exists(schema_file):
+            # check if it exists in the current working directory
+            current_directory = os.getcwd()
+            schema_file_path_in_current_directory = os.path.join(current_directory, 'material_properties.schema')
+            if not os.path.exists(schema_file_path_in_current_directory):
+                raise FileNotFoundError(f"Schema file '{schema_file}' not found in provided path or current directory.")
+            else:
+                schema_file = schema_file_path_in_current_directory
+        with open(schema_file) as f:
             return json.load(f)
 
     @staticmethod
     def load_materials(json_file: str) -> Dict[str, Any]:
+        if not os.path.exists(json_file):
+            # check if it exists in the current working directory
+            current_directory = os.getcwd()
+            json_file_path_in_current_directory = os.path.join(current_directory, json_file)
+            if not os.path.exists(json_file_path_in_current_directory):
+                raise FileNotFoundError(f"Json file '{json_file}' not found in provided path or current directory.")
+            else:
+                json_file = json_file_path_in_current_directory
         with open(json_file) as file:
             return json.load(file)
 

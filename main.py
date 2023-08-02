@@ -1,24 +1,20 @@
 import ufl
 import fenics as fe
-import json
 import matplotlib.pyplot as plt
 import numpy as np
 import warnings
 from ffc.quadrature.deprecation import QuadratureRepresentationDeprecationWarning
-from tabulate import tabulate
-from typing import List
-import config
-import input_file
-import material_properties as mat_prop
-import interpolate
-import info
+from AlCementCor.config import *
+from AlCementCor.info import *
+from AlCementCor.input_file import *
+from AlCementCor.material_properties import *
 
 fe.parameters["form_compiler"]["representation"] = 'quadrature'
 warnings.simplefilter("once", QuadratureRepresentationDeprecationWarning)
 
 
 # Initialize a SimulationConfig object using the configuration file
-simulation_config = config.SimulationConfig('simulation_config.json')
+simulation_config = SimulationConfig('simulation_config.json')
 
 two_layers = simulation_config.use_two_material_layers
 endTime = simulation_config.integration_time_limit
@@ -28,19 +24,19 @@ selected_hardening_model = simulation_config.hardening_model
 # Check if the field_input_file is set in the configuration file
 if simulation_config.field_input_file:
     # If it is, load the thickness and length from the file
-    result = input_file.process_input_tensors(simulation_config.field_input_file, plot=True)
+    result = process_input_tensors(simulation_config.field_input_file, plot=True)
 
     # Access thickness and length directly from the result dictionary
-    simulation_config.width = result[input_file.ExternalInput.WIDTH.value]
-    simulation_config.length = result[input_file.ExternalInput.LENGTH.value]
+    simulation_config.width = result[ExternalInput.WIDTH.value]
+    simulation_config.length = result[ExternalInput.LENGTH.value]
 
 # # Define old coordinates
 # old_coordinates = np.array([result[input_file.ExternalInput.X.value], result[input_file.ExternalInput.Y.value],
 #                             result[input_file.ExternalInput.Z.value]]).T
 
 # Load material properties
-properties_al = mat_prop.MaterialProperties('material_properties.json', 'Al6082-T6')
-properties_ceramic = mat_prop.MaterialProperties('material_properties.json', 'Aluminium-Ceramic')
+properties_al = MaterialProperties('material_properties.json', 'Al6082-T6')
+properties_ceramic = MaterialProperties('material_properties.json', 'Aluminium-Ceramic')
 
 # Access properties for Al6082-T6
 C_E = properties_al.youngs_modulus
@@ -64,7 +60,7 @@ lmbda_outer = properties_ceramic.first_lame_parameter
 C_Et_outer = properties_ceramic.tangent_modulus
 C_linear_isotropic_hardening_outer = properties_ceramic.linear_isotropic_hardening
 
-info.summarize_and_print_config(simulation_config, [properties_al, properties_ceramic])
+summarize_and_print_config(simulation_config, [properties_al, properties_ceramic])
 
 # Length refers to the y-length
 # Width refers to the x-length

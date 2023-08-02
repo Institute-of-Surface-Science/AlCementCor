@@ -1,10 +1,11 @@
 from tabulate import tabulate
 from typing import List
-import config
-import material_properties as mat_prop
+from AlCementCor.config import SimulationConfig
+from AlCementCor.material_properties import MaterialProperties
 
-def summarize_and_print_config(simulation_config: config.SimulationConfig,
-                               materials: List[mat_prop.MaterialProperties]) -> None:
+
+def summarize_and_print_config(simulation_config: SimulationConfig,
+                               materials: List[MaterialProperties]) -> None:
     logo = """
         ___    ________                          __  ______          
        /   |  / / ____/__  ____ ___  ___  ____  / /_/ ____/___  _____
@@ -37,8 +38,8 @@ def summarize_and_print_config(simulation_config: config.SimulationConfig,
     print("---------------------------------------")
 
     # Dynamically get the properties of the MaterialProperties class
-    material_props = [attr for attr in dir(mat_prop.MaterialProperties) if
-                      not callable(getattr(mat_prop.MaterialProperties, attr)) and not attr.startswith("_")]
+    material_props = [attr for attr in dir(MaterialProperties) if
+                      not callable(getattr(MaterialProperties, attr)) and not attr.startswith("_")]
     headers = ["Property"] + [material.material for material in materials]
     rows = []
     for prop in material_props:
