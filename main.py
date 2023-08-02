@@ -4,7 +4,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import warnings
 from ffc.quadrature.deprecation import QuadratureRepresentationDeprecationWarning
-from abc import ABC, abstractmethod
+
+from AlCementCor.bnd import ConstantStrainRateBoundaryCondition, NoDisplacementBoundaryCondition
 from AlCementCor.config import *
 from AlCementCor.info import *
 from AlCementCor.input_file import *
@@ -12,6 +13,33 @@ from AlCementCor.material_properties import *
 
 fe.parameters["form_compiler"]["representation"] = 'quadrature'
 warnings.simplefilter("once", QuadratureRepresentationDeprecationWarning)
+
+
+def setup_boundary_conditions(V, two_layers, C_strain_rate, l_y):
+    # Define boundary location conditions
+    def is_bottom_boundary(x, on_boundary):
+        return on_boundary and fe.near(x[1], 0.0)
+
+    def is_top_boundary(x, on_boundary):
+        return on_boundary and fe.near(x[1], l_y)
+
+    # Define the boundary conditions
+    bottom_condition = ConstantStrainRateBoundaryCondition(V, is_bottom_boundary,
+                                                           -C_strain_rate) if two_layers else NoDisplacementBoundaryCondition(
+        V, is_bottom_boundary)
+    top_condition = ConstantStrainRateBoundaryCondition(V, is_top_boundary, C_strain_rate)
+
+    # Create the conditions list
+    conditions = [bottom_condition, top_condition]
+
+    # Generate the Dirichlet boundary conditions
+    bc = [condition.get_condition() for condition in conditions]
+
+    # Generate homogenized boundary conditions
+    bc_iter = [condition.get_homogenized_condition() for condition in conditions]
+
+    return bc, bc_iter, conditions
+
 
 # Initialize a SimulationConfig object using the configuration file
 simulation_config = SimulationConfig('simulation_config.json')
@@ -99,78 +127,31 @@ P0 = fe.FunctionSpace(mesh, "DG", 0)
 sig_hyd_avg, sig_0_test, lmbda_test = [fe.Function(P0, name=n) for n in ["Avg. Hydrostatic stress", "test", "test2"]]
 
 
-# Define base class for boundary conditions
-class BoundaryCondition(ABC):
-    def __init__(self, V, on_boundary):
-        self.V = V
-        self.on_boundary = on_boundary
+# # Define boundary location conditions
+# def is_bottom_boundary(x, on_boundary):
+#     return on_boundary and fe.near(x[1], 0.0)
+#
+#
+# def is_top_boundary(x, on_boundary):
+#     return on_boundary and fe.near(x[1], l_y)
+#
+#
+# # Define the boundary conditions
+# bottom_condition = ConstantStrainRateBoundaryCondition(V, is_bottom_boundary,
+#                                                        -C_strain_rate) if two_layers else NoDisplacementBoundaryCondition(
+#     V, is_bottom_boundary)
+# top_condition = ConstantStrainRateBoundaryCondition(V, is_top_boundary, C_strain_rate)
+#
+# # Create the conditions list
+# conditions = [bottom_condition, top_condition]
+#
+# # Generate the Dirichlet boundary conditions
+# bc = [condition.get_condition() for condition in conditions]
+#
+# # Generate homogenized boundary conditions
+# bc_iter = [condition.get_homogenized_condition() for condition in conditions]
 
-    @abstractmethod
-    def get_condition(self):
-        pass
-
-    @abstractmethod
-    def get_homogenized_condition(self):
-        pass
-
-
-# Define class for No Displacement boundary condition
-class NoDisplacementBoundaryCondition(BoundaryCondition):
-    def get_condition(self):
-        return fe.DirichletBC(self.V, fe.Constant((0.0, 0.0)), self.on_boundary)
-
-    def get_homogenized_condition(self):
-        return fe.DirichletBC(self.V.sub(1), 0, self.on_boundary)
-
-
-class StrainRateExpression(fe.UserExpression):
-    def __init__(self, strain_rate, **kwargs):
-        super().__init__(**kwargs)
-        self.strain_rate = strain_rate
-        self.time = 0.0
-
-    def eval(self, values, x):
-        values[0] = self.strain_rate * self.time
-
-    def update_time(self, time):
-        self.time = time
-
-
-# Define class for Constant Strain Rate boundary condition
-class ConstantStrainRateBoundaryCondition(BoundaryCondition):
-    def __init__(self, V, on_boundary, strain_rate):
-        super().__init__(V, on_boundary)
-        self.strain_rate_expr = StrainRateExpression(strain_rate, degree=0)
-
-    def get_condition(self):
-        return fe.DirichletBC(self.V.sub(1), self.strain_rate_expr, self.on_boundary)
-
-    def get_homogenized_condition(self):
-        return fe.DirichletBC(self.V.sub(1), 0, self.on_boundary)
-
-    def update_time(self, time_step):
-        self.strain_rate_expr.update_time(time_step)
-
-
-# Define the boundary location functions
-is_bottom_boundary = lambda x, on_boundary: on_boundary and fe.near(x[1], 0.0)
-is_top_boundary = lambda x, on_boundary: on_boundary and fe.near(x[1], l_y)
-
-# Define the bottom boundary condition, which depends on 'two_layers' flag
-if two_layers:
-    bottom_condition = ConstantStrainRateBoundaryCondition(V, is_bottom_boundary, -C_strain_rate)
-else:
-    bottom_condition = NoDisplacementBoundaryCondition(V, is_bottom_boundary)
-
-# Define the top boundary condition
-top_condition = ConstantStrainRateBoundaryCondition(V, is_top_boundary, C_strain_rate)
-
-# Generate the Dirichlet boundary conditions
-bc = [bottom_condition.get_condition(), top_condition.get_condition()]
-
-# Generate homogenized boundary conditions
-bc_iter = [bottom_condition.get_homogenized_condition(), top_condition.get_homogenized_condition()]
-
+bc, bc_iter, conditions = setup_boundary_conditions(V, two_layers, C_strain_rate, l_y)
 
 # Util
 ########################################################################
@@ -472,7 +453,7 @@ while time < endTime:
     i += 1
 
     # update the displacement boundary
-    for condition in [bottom_condition, top_condition]:
+    for condition in conditions:
         if isinstance(condition, ConstantStrainRateBoundaryCondition):
             condition.update_time(time_step)
 
