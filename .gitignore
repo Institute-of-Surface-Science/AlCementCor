@@ -1,16 +1,7 @@
-
 *.svg
-
 *.xdmf
-
 *.h5
-
 *.png
-
 .idea/
-
-jitfailure-dolfin_expression_c06ef5457b4e762953875e36e030e75e/
-
-jitfailure-dolfin_expression_d6b5571ab33067b3e761c9914f9ae1c6/
-
+jitfailure-dolfin_expression_*
 *.pyc
