@@ -89,9 +89,6 @@ def setup_numerical_stuff(simulation_config, mesh):
 def extract_material_properties(properties_al, properties_ceramic):
     """Extracts required material properties from MaterialProperties objects."""
     # Access properties for Al6082-T6
-    C_E = properties_al.youngs_modulus
-    C_nu = properties_al.poisson_ratio
-    C_sig0 = properties_al.yield_strength
     C_mu = properties_al.shear_modulus
     lmbda = properties_al.first_lame_parameter
     C_Et = properties_al.tangent_modulus
@@ -102,15 +99,12 @@ def extract_material_properties(properties_al, properties_ceramic):
     C_exponent_swift = properties_al.exponent_swift
 
     # Access properties for Aluminium-Ceramic
-    C_E_outer = properties_ceramic.youngs_modulus
-    C_nu_outer = properties_ceramic.poisson_ratio
-    C_sig0_outer = properties_ceramic.yield_strength
     C_mu_outer = properties_ceramic.shear_modulus
     lmbda_outer = properties_ceramic.first_lame_parameter
     C_Et_outer = properties_ceramic.tangent_modulus
     C_linear_isotropic_hardening_outer = properties_ceramic.linear_isotropic_hardening
 
-    return C_E, C_nu, C_sig0, C_mu, lmbda, C_Et, C_linear_isotropic_hardening, C_nlin_ludwik, C_exponent_ludwik, C_swift_eps0, C_exponent_swift, C_E_outer, C_nu_outer, C_sig0_outer, C_mu_outer, lmbda_outer, C_Et_outer, C_linear_isotropic_hardening_outer
+    return C_mu, lmbda, C_Et, C_linear_isotropic_hardening, C_nlin_ludwik, C_exponent_ludwik, C_swift_eps0, C_exponent_swift, C_mu_outer, lmbda_outer, C_Et_outer, C_linear_isotropic_hardening_outer
 
 
 def plot_vm(i, sig_eq_p):
@@ -292,10 +286,9 @@ def main():
     simulation_config, properties_substrate, properties_layer = load_simulation_config()
 
     # Extract material properties
-    (C_E, C_nu, C_sig0, C_mu, lmbda, C_Et, C_linear_isotropic_hardening, C_nlin_ludwik, C_exponent_ludwik, C_swift_eps0,
-     C_exponent_swift, C_E_outer, C_nu_outer, C_sig0_outer, C_mu_outer, lmbda_outer, C_Et_outer,
-     C_linear_isotropic_hardening_outer) = extract_material_properties(
-        properties_substrate, properties_layer)
+    (C_mu, lmbda, C_Et, C_linear_isotropic_hardening, C_nlin_ludwik, C_exponent_ludwik, C_swift_eps0,
+     C_exponent_swift, C_mu_outer, lmbda_outer, C_Et_outer,
+     C_linear_isotropic_hardening_outer) = extract_material_properties(properties_substrate, properties_layer)
 
     # Summary of configuration and material properties
     summarize_and_print_config(simulation_config, [properties_substrate, properties_layer])
@@ -345,7 +338,7 @@ def main():
     Nitermax, tol = 100, 1e-8  # parameters of the Newton-Raphson procedure
     time_step = simulation_config.integration_time_limit / (simulation_config.total_timesteps)
 
-    sig_0_local = assign_layer_values(C_sig0, C_sig0_outer, W0, simulation_config)
+    sig_0_local = assign_layer_values(properties_substrate.yield_strength, properties_layer.yield_strength, W0, simulation_config)
     mu_local = assign_layer_values(C_mu, C_mu_outer, W0, simulation_config)
     C_linear_h_local = assign_layer_values(C_linear_isotropic_hardening, C_linear_isotropic_hardening_outer, W0,
                                            simulation_config)
