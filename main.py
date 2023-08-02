@@ -355,7 +355,7 @@ class set_layer_2(fe.UserExpression):
         super().__init__(**kwargs)
 
     def eval(self, value, x):
-        if x[0] > l_inner_x:
+        if x[0] > simulation_config.width:
             value[0] = self.outer
             value[1] = self.outer
         else:
@@ -373,7 +373,7 @@ mu_local_DG = fe.Function(DG)
 dofmap = DG.tabulate_dof_coordinates()[:]
 mu_vec = np.zeros(dofmap.shape[0])
 mu_vec[:] = C_mu
-mu_vec[dofmap[:, 0] > l_inner_x] = C_mu_outer
+mu_vec[dofmap[:, 0] > simulation_config.width] = C_mu_outer
 mu_local_DG.vector()[:] = mu_vec
 # print(dofmap)
 # print(dofmap.shape)
@@ -386,7 +386,7 @@ lmbda_local_DG = fe.Function(DG)
 dofmap = DG.tabulate_dof_coordinates()[:]
 lmbda_vec = np.zeros(dofmap.shape[0])
 lmbda_vec[:] = lmbda
-lmbda_vec[dofmap[:, 0] > l_inner_x] = lmbda_outer
+lmbda_vec[dofmap[:, 0] > simulation_config.width] = lmbda_outer
 lmbda_local_DG.vector()[:] = lmbda_vec
 
 # lmbda_test.assign(fe.project(lmbda_local_DG, P0))
@@ -406,7 +406,7 @@ C_linear_h_local_DG = fe.Function(DG)
 dofmap = DG.tabulate_dof_coordinates()[:]
 C_linear_h_vec = np.zeros(dofmap.shape[0])
 C_linear_h_vec[:] = C_linear_isotropic_hardening
-C_linear_h_vec[dofmap[:, 0] > l_inner_x] = C_linear_isotropic_hardening_outer
+C_linear_h_vec[dofmap[:, 0] > simulation_config.width] = C_linear_isotropic_hardening_outer
 C_linear_h_local_DG.vector()[:] = C_linear_h_vec
 
 a_Newton = fe.inner(eps(v), sigma_tang(eps(u_))) * dxm
@@ -434,7 +434,7 @@ class set_yield(fe.UserExpression):
         super().__init__(**kwargs)
 
     def eval(self, value, x):
-        if x[0] > l_inner_x:
+        if x[0] > simulation_config.width:
             value[0] = C_sig0_outer
         else:
             value[0] = C_sig0
@@ -451,7 +451,7 @@ class set_layer(fe.UserExpression):
         super().__init__(**kwargs)
 
     def eval(self, value, x):
-        if x[0] > l_inner_x:
+        if x[0] > simulation_config.width:
             value[0] = self.outer
         else:
             value[0] = self.inner
