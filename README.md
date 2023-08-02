@@ -10,11 +10,14 @@ To use this repository, the following Python packages are required:
 - Scipy
 - Matplotlib
 - jsonschema
+- pandas
+- sklearn
+- tabulate
 
 These packages can be installed via pip:
 
 ```sh
-pip install numpy scipy matplotlib jsonschema
+pip install numpy scipy matplotlib jsonschema pandas sklearn tabulate
 ```
 
 ## Getting Started
@@ -22,13 +25,13 @@ pip install numpy scipy matplotlib jsonschema
 1. **Clone the repository:** 
 
 ```sh
-git clone https://github.com/[username]/advanced-material-simulation.git
+git clone https://github.com/Institute-of-Surface-Science/AlCementCor.git
 ```
 
 2. **Navigate to the repository folder:**
 
 ```sh
-cd advanced-material-simulation
+cd AlCementCor
 ```
 
 3. **Run a simulation:** Use the provided example to get started.
@@ -43,7 +46,7 @@ You can customize your simulations by modifying the simulation configuration fil
 
 1. **Material Properties:** Specify the properties of the material you wish to simulate in the `material_properties.json` file.
 
-2. **Simulation Configuration:** Adjust various parameters for the simulation in the `simulation_config.json` file.
+2. **Simulation Configuration:** Adjust various parameters for the simulation in the `simulation_config.json` file. You can also use setters for some properties.
 
 ## Documentation
 
