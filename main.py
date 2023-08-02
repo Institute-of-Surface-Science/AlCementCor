@@ -82,6 +82,8 @@ if simulation_config.field_input_file:
     # Access thickness and length directly from the result dictionary
     width = result[input_file.ExternalInput.WIDTH.value]
     length = result[input_file.ExternalInput.LENGTH.value]
+    simulation_config.width = width
+    simulation_config.length = length
 else:
     # If it isn't, load the thickness and length from the configuration file
     width = simulation_config.width

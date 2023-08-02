@@ -177,9 +177,17 @@ class SimulationConfig:
     def length(self):
         return self._config[SimulationFields.MATERIAL_DIMENSIONS.value][SimulationFields.LENGTH.value]
 
+    @length.setter
+    def length(self, new_length):
+        self._config[SimulationFields.MATERIAL_DIMENSIONS.value][SimulationFields.LENGTH.value] = new_length
+
     @property
     def width(self):
         return self._config[SimulationFields.MATERIAL_DIMENSIONS.value][SimulationFields.WIDTH.value]
+
+    @width.setter
+    def width(self, new_width):
+        self._config[SimulationFields.MATERIAL_DIMENSIONS.value][SimulationFields.WIDTH.value] = new_width
 
     @property
     def layer_1_thickness(self):

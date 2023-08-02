@@ -101,7 +101,7 @@ def process_input_tensors(filename, plot=False):
 
     # Calculate the thickness of the aluminium layer
     y_coordinates_centroids = kmeans.cluster_centers_[:, 1]
-    thickness_aluminium = np.abs(np.diff(y_coordinates_centroids))
+    width = np.abs(np.diff(y_coordinates_centroids))
 
     # Calculate the length of the area
     length = np.ptp(x_coordinates_0)
@@ -159,7 +159,7 @@ def process_input_tensors(filename, plot=False):
 
     # Add calculated values to the loaded_vars dictionary
     loaded_vars.update({
-        ExternalInput.WIDTH.value: thickness_aluminium[0],
+        ExternalInput.WIDTH.value: width[0],
         ExternalInput.LENGTH.value: length,
         ExternalInput.DISPLACEMENT.value: displacement,
         ExternalInput.X.value: np.array(x_coordinates),
