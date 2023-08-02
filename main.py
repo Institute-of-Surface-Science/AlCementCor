@@ -124,32 +124,6 @@ def plot_vm(i, sig_eq_p):
     plt.savefig("vm" + str(i) + ".svg")
     plt.close()
 
-
-# Load configuration and material properties
-simulation_config, properties_substrate, properties_layer = load_simulation_config()
-
-# Extract material properties
-(C_E, C_nu, C_sig0, C_mu, lmbda, C_Et, C_linear_isotropic_hardening, C_nlin_ludwik, C_exponent_ludwik, C_swift_eps0,
- C_exponent_swift, C_E_outer, C_nu_outer, C_sig0_outer, C_mu_outer, lmbda_outer, C_Et_outer,
- C_linear_isotropic_hardening_outer) = extract_material_properties(
-    properties_substrate, properties_layer)
-
-# Summary of configuration and material properties
-summarize_and_print_config(simulation_config, [properties_substrate, properties_layer])
-
-# Geometry setup
-mesh, l_x, l_y = setup_geometry(simulation_config)
-
-# Set up numerical parameters
-C_strain_rate = fe.Constant(0.000001)  # 0.01/s
-(V, u, du, Du, W, sig, sig_old, n_elas, W0, beta, p, sig_hyd, sig_0_local, mu_local, lmbda_local, C_linear_h_local,
- P0, sig_hyd_avg, sig_0_test, lmbda_test, DG, deg_stress) = setup_numerical_stuff(
-    simulation_config, mesh)
-
-# Set up boundary conditions
-bc, bc_iter, conditions = setup_boundary_conditions(V, simulation_config.use_two_material_layers, C_strain_rate, l_y)
-
-
 # Util
 ########################################################################
 def as_3D_tensor(X):
@@ -158,7 +132,7 @@ def as_3D_tensor(X):
                          [0, 0, X[2]]])
 
 
-def local_project(v, V, u=None):
+def local_project(v, V, dxm, u=None):
     dv = fe.TrialFunction(V)
     v_ = fe.TestFunction(V)
     a_proj = fe.inner(dv, v_) * dxm
@@ -189,7 +163,7 @@ def eps(displacement):
                          [0, 0, 0]])
 
 
-def sigma(strain):
+def sigma(strain, lmbda_local_DG, mu_local_DG):
     """
     Calculate the Cauchy Stress Tensor
     :param strain: Strain (epsilon)
@@ -198,15 +172,15 @@ def sigma(strain):
     return lmbda_local_DG * fe.tr(strain) * fe.Identity(3) + 2 * mu_local_DG * strain
 
 
-def sigma_tang(e):
+def sigma_tang(e, n_elas, mu_local_DG, C_linear_h_local_DG, beta, lmbda_local_DG):
     N_elas = as_3D_tensor(n_elas)
-    return sigma(e) - 3 * mu_local_DG * (3 * mu_local_DG / (3 * mu_local_DG + C_linear_h_local_DG) - beta) * fe.inner(
+    return sigma(e, lmbda_local_DG, mu_local_DG) - 3 * mu_local_DG * (3 * mu_local_DG / (3 * mu_local_DG + C_linear_h_local_DG) - beta) * fe.inner(
         N_elas, e) * N_elas - 2 * mu_local_DG * beta * fe.dev(e)
 
 
 # Von-Mises Stress
-def sigma_v(strain):
-    s = fe.dev(sigma(strain))
+def sigma_v(strain, lmbda_local_DG, mu_local_DG):
+    s = fe.dev(sigma(strain, lmbda_local_DG, mu_local_DG))
     return fe.sqrt(3 / 2. * fe.inner(s, s))
 
 
@@ -218,10 +192,10 @@ ppos = lambda x: (x + abs(x)) / 2.
 # https://www.dynasupport.com/tutorial/computational-plasticity/radial-return
 # https://www.dynasupport.com/tutorial/computational-plasticity/generalizing-the-yield-function
 # https://www.dynasupport.com/tutorial/computational-plasticity/the-consistent-tangent-matrix
-def proj_sig(deps, old_sig, old_p):
+def proj_sig(deps, old_sig, old_p, sig_0_local, C_linear_h_local, mu_local, C_mu, lmbda_local_DG, mu_local_DG):
     # update stress from change in strain (deps)
     sig_n = as_3D_tensor(old_sig)
-    sig_elas = sig_n + sigma(deps)
+    sig_elas = sig_n + sigma(deps, lmbda_local_DG, mu_local_DG)
 
     # trial stress
     s = fe.dev(sig_elas)
@@ -277,177 +251,183 @@ def proj_sig(deps, old_sig, old_p):
         beta, dp, sig_hyd
 
 
-metadata = {"quadrature_degree": deg_stress, "quadrature_scheme": "default"}
-dxm = ufl.dx(metadata=metadata)
-
-v = fe.TrialFunction(V)
-u_ = fe.TestFunction(V)
-
-
-def assign_local_values(values, outer_values, local_DG):
+def assign_local_values(values, outer_values, local_DG, DG, simulation_config):
     dofmap = DG.tabulate_dof_coordinates()[:]
     vec = np.zeros(dofmap.shape[0])
     vec[:] = values
     vec[dofmap[:, 0] > simulation_config.width] = outer_values
     local_DG.vector()[:] = vec
 
-
-# calculate local mu
-mu_local_DG = fe.Function(DG)
-assign_local_values(C_mu, C_mu_outer, mu_local_DG)
-
-lmbda_local_DG = fe.Function(DG)
-assign_local_values(lmbda, lmbda_outer, lmbda_local_DG)
-
-C_linear_h_local_DG = fe.Function(DG)
-assign_local_values(C_linear_isotropic_hardening, C_linear_isotropic_hardening_outer, C_linear_h_local_DG)
-
-a_Newton = fe.inner(eps(v), sigma_tang(eps(u_))) * dxm
-# res = -inner(eps(u_), as_3D_tensor(sig)) * dxm + F_ext(u_)
-res = -fe.inner(eps(u_), as_3D_tensor(sig)) * dxm
-
-cellV = local_project(fe.CellVolume(mesh), P0)
-
-file_results = fe.XDMFFile("plasticity_results.xdmf")
-file_results.parameters["flush_output"] = True
-file_results.parameters["functions_share_mesh"] = True
-P0 = fe.FunctionSpace(mesh, "DG", 0)
-p_avg = fe.Function(P0, name="Plastic strain")
-
-Nitermax, tol = 100, 1e-8  # parameters of the Newton-Raphson procedure
-time_step = simulation_config.integration_time_limit / (simulation_config.total_timesteps)
-
-
 # assign local values to the layers
-class set_layer(fe.UserExpression):
-    # Return the diffusion coefficient at a point scaled by level set function
-    def __init__(self, inner_value, outer_value, **kwargs):
-        self.inner = inner_value
-        self.outer = outer_value
-        super().__init__(**kwargs)
+def assign_layer_values(inner_value, outer_value, W0, simulation_config):
+    class set_layer(fe.UserExpression):
+        def __init__(self, inner_value, outer_value, simulation_config, **kwargs):
+            self.inner = inner_value
+            self.outer = outer_value
+            self.width = simulation_config.width
+            super().__init__(**kwargs)
 
-    def eval(self, value, x):
-        if x[0] > simulation_config.width:
-            value[0] = self.outer
-        else:
-            value[0] = self.inner
+        def eval(self, value, x):
+            if x[0] > self.width:
+                value[0] = self.outer
+            else:
+                value[0] = self.inner
 
-    def value_shape(self):
-        return ()
+        def value_shape(self):
+            return ()
 
-
-def assign_layer_values(inner_value, outer_value, W0):
-    layer = set_layer(inner_value, outer_value)
+    layer = set_layer(inner_value, outer_value, simulation_config)
     return fe.interpolate(layer, W0)
 
-
-sig_0_local = assign_layer_values(C_sig0, C_sig0_outer, W0)
-mu_local = assign_layer_values(C_mu, C_mu_outer, W0)
-C_linear_h_local = assign_layer_values(C_linear_isotropic_hardening, C_linear_isotropic_hardening_outer, W0)
-
-# Initializing result and time step lists
-results = [(0, 0)]
-stress_max_t = [0]
-stress_mean_t = [0]
-disp_t = [0]
-
-time = 0
-i = 0
-not_adjusted_count = 0
 
 
 def check_convergence(nRes, nRes0, tol, niter, Nitermax):
     return niter == 0 or (nRes0 > 0 and nRes / nRes0 > tol and niter < Nitermax)
 
 
-# for (i, time) in enumerate(time_steps):
-while time < simulation_config.integration_time_limit:
-    time += time_step
-    i += 1
+def main():
+    # Load configuration and material properties
+    simulation_config, properties_substrate, properties_layer = load_simulation_config()
 
-    # update the displacement boundary
-    for condition in conditions:
-        if isinstance(condition, ConstantStrainRateBoundaryCondition):
-            condition.update_time(time_step)
+    # Extract material properties
+    (C_E, C_nu, C_sig0, C_mu, lmbda, C_Et, C_linear_isotropic_hardening, C_nlin_ludwik, C_exponent_ludwik, C_swift_eps0,
+     C_exponent_swift, C_E_outer, C_nu_outer, C_sig0_outer, C_mu_outer, lmbda_outer, C_Et_outer,
+     C_linear_isotropic_hardening_outer) = extract_material_properties(
+        properties_substrate, properties_layer)
 
-    # assemble system
-    A, Res = fe.assemble_system(a_Newton, res, bc)
+    # Summary of configuration and material properties
+    summarize_and_print_config(simulation_config, [properties_substrate, properties_layer])
 
-    # calculate residual
-    nRes0 = Res.norm("l2")
-    nRes = nRes0
+    # Geometry setup
+    mesh, l_x, l_y = setup_geometry(simulation_config)
 
-    # reset Du to 0
-    Du.interpolate(fe.Constant((0, 0)))
+    # Set up numerical parameters
+    C_strain_rate = fe.Constant(0.000001)  # 0.01/s
+    (V, u, du, Du, W, sig, sig_old, n_elas, W0, beta, p, sig_hyd, sig_0_local, mu_local, lmbda_local, C_linear_h_local,
+     P0, sig_hyd_avg, sig_0_test, lmbda_test, DG, deg_stress) = setup_numerical_stuff(
+        simulation_config, mesh)
 
-    print("Step:", str(i + 1), "time", time, "s")
-    print("displacement", C_strain_rate.values()[0] * time, "mm")
+    # Set up boundary conditions
+    bc, bc_iter, conditions = setup_boundary_conditions(V, simulation_config.use_two_material_layers, C_strain_rate,
+                                                        l_y)
 
-    niter = 0
-    # n_resold = 1000
-    while niter == 0 or check_convergence(nRes, nRes0, tol, niter, Nitermax):
-        # solve for du
-        fe.solve(A, du.vector(), Res, "mumps")
+    metadata = {"quadrature_degree": deg_stress, "quadrature_scheme": "default"}
+    dxm = ufl.dx(metadata=metadata)
 
-        # update displacement gradient
-        Du.assign(Du + du)
+    v = fe.TrialFunction(V)
+    u_ = fe.TestFunction(V)
 
-        # calculate strain gradient
-        deps = eps(Du)
+    # calculate local mu
+    mu_local_DG = fe.Function(DG)
+    assign_local_values(C_mu, C_mu_outer, mu_local_DG, DG, simulation_config)
 
-        # update variables
-        sig_, n_elas_, beta_, dp_, sig_hyd_ = proj_sig(deps, sig_old, p)
-        local_project(sig_, W, sig)
-        local_project(n_elas_, W, n_elas)
-        local_project(beta_, W0, beta)
-        sig_hyd.assign(local_project(sig_hyd_, W0))
+    lmbda_local_DG = fe.Function(DG)
+    assign_local_values(lmbda, lmbda_outer, lmbda_local_DG, DG, simulation_config)
 
-        # update system
-        A, Res = fe.assemble_system(a_Newton, res, bc_iter)
+    C_linear_h_local_DG = fe.Function(DG)
+    assign_local_values(C_linear_isotropic_hardening, C_linear_isotropic_hardening_outer, C_linear_h_local_DG, DG, simulation_config)
 
-        nRes = Res.norm("l2")
-        print("    Residual:", nRes)
-        # n_resold = nRes
-        niter += 1
+    a_Newton = fe.inner(eps(v), sigma_tang(eps(u_), n_elas, mu_local_DG, C_linear_h_local_DG, beta, lmbda_local_DG)) * dxm
+    res = -fe.inner(eps(u_), as_3D_tensor(sig)) * dxm
 
-    # exit if diverged
-    if nRes > 1 or np.isnan(nRes):
-        print("ERROR: diverged!")
-        exit(-1)
+    # cellV = local_project(fe.CellVolume(mesh), P0)
 
-    # update displacement
-    u.assign(u + Du)
-    # update plastic strain
-    p.assign(p + local_project(dp_, W0))
+    file_results = fe.XDMFFile("plasticity_results.xdmf")
+    file_results.parameters["flush_output"] = True
+    file_results.parameters["functions_share_mesh"] = True
+    P0 = fe.FunctionSpace(mesh, "DG", 0)
+    p_avg = fe.Function(P0, name="Plastic strain")
 
-    # update stress fields
-    sig_old.assign(sig)
-    sig_hyd_avg.assign(fe.project(sig_hyd, P0))
+    Nitermax, tol = 100, 1e-8  # parameters of the Newton-Raphson procedure
+    time_step = simulation_config.integration_time_limit / (simulation_config.total_timesteps)
 
-    s11, s12, s21, s22 = sig.split(deepcopy=True)
-    avg_stress_y = np.average(s22.vector()[:])
-    avg_stress = np.average(sig.vector()[:])
-    sig_n = as_3D_tensor(sig)
-    s = fe.dev(sig_n)
+    sig_0_local = assign_layer_values(C_sig0, C_sig0_outer, W0, simulation_config)
+    mu_local = assign_layer_values(C_mu, C_mu_outer, W0, simulation_config)
+    C_linear_h_local = assign_layer_values(C_linear_isotropic_hardening, C_linear_isotropic_hardening_outer, W0, simulation_config)
 
-    # calculate the von-mises stress
-    sig_eq = fe.sqrt(3 / 2. * fe.inner(s, s))
-    sig_eq_p = local_project(sig_eq, P0)
+    # Initializing result and time step lists
+    results = [(0, 0)]
+    stress_max_t = [0]
+    stress_mean_t = [0]
+    disp_t = [0]
 
-    if i % 10 == 0:
-        plot_vm(i, sig_eq_p)
+    time = 0
+    i = 0
 
-    # project the von-mises stress for plotting
-    stress_max_t += [np.abs(np.amax(sig_eq_p.vector()[:]))]
-    stress_mean_t += [np.abs(np.mean(sig_eq_p.vector()[:]))]
+    # for (i, time) in enumerate(time_steps):
+    while time < simulation_config.integration_time_limit:
+        time += time_step
+        i += 1
+        for condition in conditions:
+            if isinstance(condition, ConstantStrainRateBoundaryCondition):
+                condition.update_time(time_step)
+        A, Res = fe.assemble_system(a_Newton, res, bc)
+        nRes0 = Res.norm("l2")
+        Du.interpolate(fe.Constant((0, 0)))
+        print("Step:", str(i + 1), "time", time, "s")
+        print("displacement", C_strain_rate.values()[0] * time, "mm")
 
-    # displacement at the middle of the bar in y-direction
-    disp_t += [u(l_x / 2, l_y)[1]]
+        niter = 0
+        nRes = nRes0
+        while niter == 0 or (nRes0 > 0 and nRes / nRes0 > tol and niter < Nitermax):
+            fe.solve(A, du.vector(), Res, "mumps")
+            Du.assign(Du + du)
+            deps = eps(Du)
 
-    file_results.write(u, time)
-    p_avg.assign(fe.project(p, P0))
-    file_results.write(p_avg, time)
-    results += [(np.abs(u(l_x / 2, l_y)[1]) / l_y, time)]
+            sig_, n_elas_, beta_, dp_, sig_hyd_ = proj_sig(deps, sig_old, p, sig_0_local, C_linear_h_local, mu_local, C_mu, lmbda_local_DG, mu_local_DG)
+            local_project(sig_, W, dxm, sig)
+            local_project(n_elas_, W, dxm, n_elas)
+            local_project(beta_, W0, dxm, beta)
+            sig_hyd.assign(local_project(sig_hyd_, W0, dxm))
+
+            A, Res = fe.assemble_system(a_Newton, res, bc_iter)
+
+            nRes = Res.norm("l2")
+            print("    Residual:", nRes)
+            niter += 1
+
+        if nRes > 1 or np.isnan(nRes):
+            print("ERROR: diverged!")
+            exit(-1)
+
+        # update displacement
+        u.assign(u + Du)
+        # update plastic strain
+        p.assign(p + local_project(dp_, W0, dxm))
+
+        # update stress fields
+        sig_old.assign(sig)
+        sig_hyd_avg.assign(fe.project(sig_hyd, P0))
+
+        s11, s12, s21, s22 = sig.split(deepcopy=True)
+        avg_stress_y = np.average(s22.vector()[:])
+        avg_stress = np.average(sig.vector()[:])
+        sig_n = as_3D_tensor(sig)
+        s = fe.dev(sig_n)
+
+        # calculate the von-mises stress
+        sig_eq = fe.sqrt(3 / 2. * fe.inner(s, s))
+        sig_eq_p = local_project(sig_eq, P0, dxm)
+
+        if i % 10 == 0:
+            plot_vm(i, sig_eq_p)
+
+        # project the von-mises stress for plotting
+        stress_max_t += [np.abs(np.amax(sig_eq_p.vector()[:]))]
+        stress_mean_t += [np.abs(np.mean(sig_eq_p.vector()[:]))]
+
+        # displacement at the middle of the bar in y-direction
+        disp_t += [u(l_x / 2, l_y)[1]]
+
+        file_results.write(u, time)
+        p_avg.assign(fe.project(p, P0))
+        file_results.write(p_avg, time)
+        results += [(np.abs(u(l_x / 2, l_y)[1]) / l_y, time)]
+
+if __name__ == "__main__":
+    main()
+
+
 
 # ax = fe.plot(u, mode="displacement")
 # cbar = plt.colorbar(ax)
@@ -463,50 +443,50 @@ while time < simulation_config.integration_time_limit:
 # cbar = plt.colorbar(ax)
 # plt.show()
 
-# data extracted from fig. 6 paper1
-ref_strain = [4.5917e-7, 0.0022967, 0.0068471, 0.0077457, 0.008868360277136257,
-              0.011511, 0.024988, 0.040012, 0.059011, 0.071602, 0.083751,
-              0.10429, 0.12108, 0.13963, 0.16105, 0.17960]
-ref_stress = [0.10395, 99.376, 250.10, 267.26, 275.09019989024057,
-              279.21, 284.41, 290.64, 296.36, 299.48, 301.04, 302.60, 303.12, 302.60,
-              301.04, 296.88]
-
-# data extracted from fig. 10 paper 3
-ref_strain2 = [0, 0.001072706, 0.001966627, 0.002324195, 0.003218117, 0.004469607, 0.007508939,
-               0.009833135, 0.015554231, 0.027711561, 0.038796186, 0.056495828, 0.070262217,
-               0.085637664, 0.10852205, 0.131585221, 0.155542312, 0.175029797, 0.178605483]
-
-ref_stress2 = [0, 117.4641148, 172.0095694, 222.9665072, 236.2440191, 246.291866, 253.8277512,
-               260.2870813, 264.9521531, 277.15311, 285.0478469, 294.7368421, 299.0430622,
-               302.9904306, 307.2966507, 305.861244, 306.5789474, 300.8373206, 288.6363636]
-
-# for linear deformation E = stress/strain -> strain = stress/E
-linear_strain = np.multiply(np.array(stress_max_t), 1.0 / C_E.values()[0])
-linear_deformation = linear_strain * l_y
-
-print("max vm stress", np.max(stress_max_t))
-print("mean vm stress", np.max(stress_mean_t))
-
-# Plot the stress-deformation curve
-plt.plot(disp_t, stress_max_t, "-o", label="sim", markevery=5)
-plt.plot(linear_deformation, stress_max_t, label="linear")
-plt.xlabel("displacement [mm]")
-plt.ylabel(r"max. von-Mises stress [MPa]")
-plt.legend()
-plt.savefig("test_deformation_stress.svg")
-
-# Plot the stress-strain curve
-plt.figure()
-# plt.plot(np.array(disp_t) / l_y, stress_max_t, "-o", label="sim-max", markevery=5)
-plt.plot(np.array(disp_t) / l_y, stress_mean_t, "-o", label="sim", markevery=5)
-plt.plot(linear_strain, stress_max_t, label="linear")
-plt.plot(ref_strain, ref_stress, label="exp")
-plt.plot(ref_strain2, ref_stress2, label="exp2")
-# plt.plot(linear_strain, stress_mean_t, label="linear")
-plt.xlabel("strain [-]")
-plt.ylabel(r"max. von-Mises stress [MPa]")
-plt.legend()
-plt.savefig("test_strain_stress.svg")
+# # data extracted from fig. 6 paper1
+# ref_strain = [4.5917e-7, 0.0022967, 0.0068471, 0.0077457, 0.008868360277136257,
+#               0.011511, 0.024988, 0.040012, 0.059011, 0.071602, 0.083751,
+#               0.10429, 0.12108, 0.13963, 0.16105, 0.17960]
+# ref_stress = [0.10395, 99.376, 250.10, 267.26, 275.09019989024057,
+#               279.21, 284.41, 290.64, 296.36, 299.48, 301.04, 302.60, 303.12, 302.60,
+#               301.04, 296.88]
+#
+# # data extracted from fig. 10 paper 3
+# ref_strain2 = [0, 0.001072706, 0.001966627, 0.002324195, 0.003218117, 0.004469607, 0.007508939,
+#                0.009833135, 0.015554231, 0.027711561, 0.038796186, 0.056495828, 0.070262217,
+#                0.085637664, 0.10852205, 0.131585221, 0.155542312, 0.175029797, 0.178605483]
+#
+# ref_stress2 = [0, 117.4641148, 172.0095694, 222.9665072, 236.2440191, 246.291866, 253.8277512,
+#                260.2870813, 264.9521531, 277.15311, 285.0478469, 294.7368421, 299.0430622,
+#                302.9904306, 307.2966507, 305.861244, 306.5789474, 300.8373206, 288.6363636]
+#
+# # for linear deformation E = stress/strain -> strain = stress/E
+# linear_strain = np.multiply(np.array(stress_max_t), 1.0 / C_E.values()[0])
+# linear_deformation = linear_strain * l_y
+#
+# print("max vm stress", np.max(stress_max_t))
+# print("mean vm stress", np.max(stress_mean_t))
+#
+# # Plot the stress-deformation curve
+# plt.plot(disp_t, stress_max_t, "-o", label="sim", markevery=5)
+# plt.plot(linear_deformation, stress_max_t, label="linear")
+# plt.xlabel("displacement [mm]")
+# plt.ylabel(r"max. von-Mises stress [MPa]")
+# plt.legend()
+# plt.savefig("test_deformation_stress.svg")
+#
+# # Plot the stress-strain curve
+# plt.figure()
+# # plt.plot(np.array(disp_t) / l_y, stress_max_t, "-o", label="sim-max", markevery=5)
+# plt.plot(np.array(disp_t) / l_y, stress_mean_t, "-o", label="sim", markevery=5)
+# plt.plot(linear_strain, stress_max_t, label="linear")
+# plt.plot(ref_strain, ref_stress, label="exp")
+# plt.plot(ref_strain2, ref_stress2, label="exp2")
+# # plt.plot(linear_strain, stress_mean_t, label="linear")
+# plt.xlabel("strain [-]")
+# plt.ylabel(r"max. von-Mises stress [MPa]")
+# plt.legend()
+# plt.savefig("test_strain_stress.svg")
 
 # It can also be checked that the analytical limit load is also well reproduced
 # when considering a zero hardening modulus.
