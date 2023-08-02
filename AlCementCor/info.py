@@ -1,3 +1,5 @@
+import inspect
+import os
 from tabulate import tabulate
 from typing import List
 from AlCementCor.config import SimulationConfig
@@ -6,6 +8,8 @@ from AlCementCor.material_properties import MaterialProperties
 
 def summarize_and_print_config(simulation_config: SimulationConfig,
                                materials: List[MaterialProperties]) -> None:
+    terminal_width = os.get_terminal_size().columns
+
     logo = """
         ___    ________                          __  ______          
        /   |  / / ____/__  ____ ___  ___  ____  / /_/ ____/___  _____
@@ -21,7 +25,7 @@ def summarize_and_print_config(simulation_config: SimulationConfig,
 
     # Print simulation configuration
     print("\nSimulation Configuration:")
-    print("---------------------------------------")
+    print("-" * terminal_width)
 
     # Dynamically get the properties of the SimulationConfig class
     sim_config_props = [attr for attr in dir(simulation_config) if
@@ -31,11 +35,13 @@ def summarize_and_print_config(simulation_config: SimulationConfig,
 
     for property, value in config_dict.items():
         print(f"{property}: {value}")
-    print("---------------------------------------")
+
+    # Print a line that spans the entire width
+    print("-" * terminal_width)
 
     # Print material properties
     print("\nMaterial Properties:")
-    print("---------------------------------------")
+    print("-" * terminal_width)
 
     # Dynamically get the properties of the MaterialProperties class
     material_props = [attr for attr in dir(MaterialProperties) if
@@ -51,4 +57,4 @@ def summarize_and_print_config(simulation_config: SimulationConfig,
         rows.append(row)
 
     print(tabulate(rows, headers=headers, tablefmt="pipe", floatfmt=".2f", missingval="N/A"))
-    print("---------------------------------------")
+    print("-" * terminal_width)

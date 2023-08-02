@@ -1,6 +1,7 @@
 import json
 import os
 from enum import Enum
+from typing import Any, Dict
 
 
 class SimulationFields(Enum):
@@ -56,7 +57,7 @@ class SimulationFields(Enum):
     USE_TWO_MATERIAL_LAYERS = "use_two_material_layers"
     INTEGRATION_TIME_LIMIT = "integration_time_limit"
     TOTAL_TIMESTEPS = "total_timesteps"
-    hardening_model = "hardening_model"
+    HARDENING_MODEL = "hardening_model"
     FIELD_INPUT_FILE = "field_input_file"
 
     MATERIAL_DIMENSIONS = "material_dimensions"
@@ -70,6 +71,10 @@ class SimulationFields(Enum):
     MESH_RESOLUTION = "mesh_resolution"
     RESOLUTION_X = "x"
     RESOLUTION_Y = "y"
+
+    CONSTANT_STRAIN_RATE = "constant_strain_rate"
+    STRAIN_RATE_X = "x"
+    STRAIN_RATE_Y = "y"
 
 
 class SimulationConfig:
@@ -140,66 +145,94 @@ class SimulationConfig:
                 raise ValueError(f"Invalid JSON in configuration file '{config_file}'.")
         return config
 
-    @property
-    def title(self):
-        return self._config[SimulationFields.SIMULATION_METADATA.value][SimulationFields.TITLE.value]
+    def get(self, key: str, subkey: str = None, subsubkey: str = None, default=None) -> Any:
+        """
+        Get the value of the given property.
+
+        Parameters:
+        ----------
+        key : str
+            The first-level key to get.
+        subkey : str, optional
+            The second-level key to get. Defaults to None.
+        subsubkey : str, optional
+            The third-level key to get. Defaults to None.
+        default : Any, optional
+            The value to return if the property does not exist.
+
+        Returns:
+        -------
+        Any
+            The value of the property, if it exists. Otherwise, the default value.
+        """
+        value = self._config.get(key, default)
+        if subkey is not None and isinstance(value, dict):
+            value = value.get(subkey, default)
+        if subsubkey is not None and isinstance(value, dict):
+            value = value.get(subsubkey, default)
+        return value
 
     @property
-    def description(self):
-        return self._config[SimulationFields.SIMULATION_METADATA.value][SimulationFields.DESCRIPTION.value]
+    def title(self) -> Any:
+        return self.get(SimulationFields.SIMULATION_METADATA.value, SimulationFields.TITLE.value, None)
 
     @property
-    def date(self):
-        return self._config[SimulationFields.SIMULATION_METADATA.value][SimulationFields.DATE.value]
+    def description(self) -> Any:
+        return self.get(SimulationFields.SIMULATION_METADATA.value, SimulationFields.DESCRIPTION.value, None)
 
     @property
-    def author(self):
-        return self._config[SimulationFields.SIMULATION_METADATA.value][SimulationFields.AUTHOR.value]
+    def date(self) -> Any:
+        return self.get(SimulationFields.SIMULATION_METADATA.value, SimulationFields.DATE.value, None)
 
     @property
-    def use_two_material_layers(self):
-        return self._config[SimulationFields.SIMULATION_PARAMETERS.value][
-            SimulationFields.USE_TWO_MATERIAL_LAYERS.value]
+    def author(self) -> Any:
+        return self.get(SimulationFields.SIMULATION_METADATA.value, SimulationFields.AUTHOR.value, None)
 
     @property
-    def integration_time_limit(self):
-        return self._config[SimulationFields.SIMULATION_PARAMETERS.value][SimulationFields.INTEGRATION_TIME_LIMIT.value]
+    def use_two_material_layers(self) -> Any:
+        return self.get(SimulationFields.SIMULATION_PARAMETERS.value, SimulationFields.USE_TWO_MATERIAL_LAYERS.value,
+                        None)
 
     @property
-    def total_timesteps(self):
-        return self._config[SimulationFields.SIMULATION_PARAMETERS.value][SimulationFields.TOTAL_TIMESTEPS.value]
+    def integration_time_limit(self) -> Any:
+        return self.get(SimulationFields.SIMULATION_PARAMETERS.value, SimulationFields.INTEGRATION_TIME_LIMIT.value,
+                        None)
 
     @property
-    def hardening_model(self):
-        return self._config[SimulationFields.SIMULATION_PARAMETERS.value][SimulationFields.hardening_model.value]
+    def total_timesteps(self) -> Any:
+        return self.get(SimulationFields.SIMULATION_PARAMETERS.value, SimulationFields.TOTAL_TIMESTEPS.value, None)
 
     @property
-    def field_input_file(self):
-        return self._config[SimulationFields.SIMULATION_PARAMETERS.value][SimulationFields.FIELD_INPUT_FILE.value]
+    def hardening_model(self) -> Any:
+        return self.get(SimulationFields.SIMULATION_PARAMETERS.value, SimulationFields.HARDENING_MODEL.value, None)
 
     @property
-    def length(self):
-        return self._config[SimulationFields.MATERIAL_DIMENSIONS.value][SimulationFields.LENGTH.value]
+    def field_input_file(self) -> Any:
+        return self.get(SimulationFields.SIMULATION_PARAMETERS.value, SimulationFields.FIELD_INPUT_FILE.value, None)
+
+    @property
+    def length(self) -> Any:
+        return self.get(SimulationFields.MATERIAL_DIMENSIONS.value, SimulationFields.LENGTH.value, None)
 
     @length.setter
-    def length(self, new_length):
-        self._config[SimulationFields.MATERIAL_DIMENSIONS.value][SimulationFields.LENGTH.value] = new_length
+    def length(self, value: Any) -> None:
+        self._config[SimulationFields.MATERIAL_DIMENSIONS.value][SimulationFields.LENGTH.value] = value
 
     @property
-    def width(self):
-        return self._config[SimulationFields.MATERIAL_DIMENSIONS.value][SimulationFields.WIDTH.value]
+    def width(self) -> Any:
+        return self.get(SimulationFields.MATERIAL_DIMENSIONS.value, SimulationFields.WIDTH.value, None)
 
     @width.setter
-    def width(self, new_width):
-        self._config[SimulationFields.MATERIAL_DIMENSIONS.value][SimulationFields.WIDTH.value] = new_width
+    def width(self, value: Any) -> None:
+        self._config[SimulationFields.MATERIAL_DIMENSIONS.value][SimulationFields.WIDTH.value] = value
 
     @property
-    def layer_1_thickness(self):
-        return self._config[SimulationFields.LAYER_1.value][SimulationFields.THICKNESS.value]
+    def layer_1_thickness(self) -> Any:
+        return self.get(SimulationFields.LAYER_1.value, SimulationFields.THICKNESS.value, None)
 
     @property
-    def layer_1_direction(self):
-        direction = self._config[SimulationFields.LAYER_1.value][SimulationFields.DIRECTION.value]
+    def layer_1_direction(self) -> Any:
+        direction = self.get(SimulationFields.LAYER_1.value, SimulationFields.DIRECTION.value, None)
         direction_map = {
             'X': [1, 0, 0],
             '-X': [-1, 0, 0],
@@ -209,11 +242,21 @@ class SimulationConfig:
         return direction_map.get(direction, [0, 0, 0])  # default to [0, 0, 0] if direction is not recognized
 
     @property
-    def mesh_resolution_x(self):
-        return self._config[SimulationFields.SIMULATION_PARAMETERS.value][SimulationFields.MESH_RESOLUTION.value][
-            SimulationFields.RESOLUTION_X.value]
+    def mesh_resolution_x(self) -> Any:
+        return self.get(SimulationFields.SIMULATION_PARAMETERS.value, SimulationFields.MESH_RESOLUTION.value,
+                        SimulationFields.RESOLUTION_X.value, None)
 
     @property
-    def mesh_resolution_y(self):
-        return self._config[SimulationFields.SIMULATION_PARAMETERS.value][SimulationFields.MESH_RESOLUTION.value][
-            SimulationFields.RESOLUTION_Y.value]
+    def mesh_resolution_y(self) -> Any:
+        return self.get(SimulationFields.SIMULATION_PARAMETERS.value, SimulationFields.MESH_RESOLUTION.value,
+                        SimulationFields.RESOLUTION_Y.value, None)
+
+    @property
+    def strain_rate_x(self) -> Any:
+        return self.get(SimulationFields.SIMULATION_PARAMETERS.value, SimulationFields.CONSTANT_STRAIN_RATE.value,
+                        SimulationFields.STRAIN_RATE_X.value, None)
+
+    @property
+    def strain_rate_y(self) -> Any:
+        return self.get(SimulationFields.SIMULATION_PARAMETERS.value, SimulationFields.CONSTANT_STRAIN_RATE.value,
+                        SimulationFields.STRAIN_RATE_Y.value, None)

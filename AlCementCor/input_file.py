@@ -86,8 +86,10 @@ def process_input_tensors(filename, plot=False):
     z_coordinates = [node_data[node_id][InputFileKeys.Z.value] for node_id in node_data.keys()]
 
     # Calculate displacement from initial position for each node
-    displacement = [np.sqrt((x[0] - x[-1]) ** 2 + (y[0] - y[-1]) ** 2 + (z[0] - z[-1]) ** 2)
-                    for x, y, z in zip(x_coordinates, y_coordinates, z_coordinates)]
+    displacement = []
+    for x, y, z in zip(x_coordinates, y_coordinates, z_coordinates):
+        displacement.append([np.sqrt((x[i+1] - x[i]) ** 2 + (y[i+1] - y[i]) ** 2 + (z[i+1] - z[i]) ** 2)
+                             for i in range(len(x) - 1)])
 
     # Get coordinates for the first timestep for further calculations
     x_coordinates_0 = [x[0] for x in x_coordinates]
@@ -174,7 +176,7 @@ def process_input_tensors(filename, plot=False):
     loaded_vars.update({
         ExternalInput.WIDTH.value: width[0],
         ExternalInput.LENGTH.value: length,
-        ExternalInput.DISPLACEMENT.value: displacement,
+        ExternalInput.DISPLACEMENT.value: np.array(displacement),
         ExternalInput.X.value: np.array(x_coordinates),
         ExternalInput.Y.value: np.array(y_coordinates),
         ExternalInput.Z.value: np.array(z_coordinates),

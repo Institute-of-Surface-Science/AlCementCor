@@ -14,6 +14,10 @@
         "mesh_resolution": {
             "x": 50,
             "y": 100
+        },
+        "constant_strain_rate": {
+            "x": null,
+            "y": 0.0001
         }
     },
     "material_dimensions": {
