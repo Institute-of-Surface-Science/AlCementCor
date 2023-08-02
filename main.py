@@ -20,23 +20,12 @@ def summarize_and_print_config(simulation_config: config.SimulationConfig, mater
     # Print simulation configuration
     print("\nSimulation Configuration:")
     print("---------------------------------------")
-    config_dict = {
-        "Two layers": simulation_config.use_two_material_layers,
-        "End time": simulation_config.integration_time_limit,
-        "No. of timesteps": simulation_config.total_timesteps,
-        "Hardening model": simulation_config.hardening_model,
-    }
-    # Check if the field_input_file is set in the configuration file
-    if simulation_config.field_input_file:
-        # If it is, load the thickness and length from the file
-        result = input_file.process_input_tensors(simulation_config.field_input_file, plot=True)
-        # Access thickness and length directly from the result dictionary
-        config_dict["Width"] = result[input_file.ExternalInput.WIDTH.value]
-        config_dict["Length"] = result[input_file.ExternalInput.LENGTH.value]
-    else:
-        # If it isn't, load the thickness and length from the configuration file
-        config_dict["Width"] = simulation_config.width
-        config_dict["Length"] = simulation_config.length
+
+    # Dynamically get the properties of the SimulationConfig class
+    sim_config_props = [attr for attr in dir(simulation_config) if
+                        not callable(getattr(simulation_config, attr)) and not attr.startswith("_")]
+
+    config_dict = {prop: getattr(simulation_config, prop) for prop in sim_config_props}
 
     for property, value in config_dict.items():
         print(f"{property}: {value}")
@@ -45,13 +34,13 @@ def summarize_and_print_config(simulation_config: config.SimulationConfig, mater
     # Print material properties
     print("\nMaterial Properties:")
     print("---------------------------------------")
-    property_keys = ["youngs_modulus", "poissons_ratio", "yield_strength",
-                     "tangent_modulus", "linear_isotropic_hardening", "shear_modulus",
-                     "first_lame_parameter", "nonlinear_ludwik_parameter",
-                     "exponent_ludwik", "swift_epsilon0", "exponent_swift"]
+
+    # Dynamically get the properties of the MaterialProperties class
+    material_props = [attr for attr in dir(mat_prop.MaterialProperties) if
+                      not callable(getattr(mat_prop.MaterialProperties, attr)) and not attr.startswith("_")]
     headers = ["Property"] + [material.material for material in materials]
     rows = []
-    for prop in property_keys:
+    for prop in material_props:
         row = [prop]  # Start with the property name
         for material in materials:
             value = getattr(material, prop, None)
