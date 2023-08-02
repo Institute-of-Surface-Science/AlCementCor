@@ -180,8 +180,8 @@ def process_input_tensors(filename, plot=False):
         ExternalInput.X.value: np.array(x_coordinates),
         ExternalInput.Y.value: np.array(y_coordinates),
         ExternalInput.Z.value: np.array(z_coordinates),
-        ExternalInput.OUTSIDE_P: outside_points,
-        ExternalInput.INSIDE_P: inside_points
+        ExternalInput.OUTSIDE_P.value: outside_points,
+        ExternalInput.INSIDE_P.value: inside_points
     })
 
     return loaded_vars

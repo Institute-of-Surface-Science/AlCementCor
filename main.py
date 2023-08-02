@@ -98,6 +98,7 @@ beta, p, sig_hyd, sig_0_local, mu_local, lmbda_local, C_linear_h_local = [fe.Fun
 P0 = fe.FunctionSpace(mesh, "DG", 0)
 sig_hyd_avg, sig_0_test, lmbda_test = [fe.Function(P0, name=n) for n in ["Avg. Hydrostatic stress", "test", "test2"]]
 
+
 # Define base class for boundary conditions
 class BoundaryCondition(ABC):
     def __init__(self, V, on_boundary):
@@ -111,6 +112,7 @@ class BoundaryCondition(ABC):
     @abstractmethod
     def get_homogenized_condition(self):
         pass
+
 
 # Define class for No Displacement boundary condition
 class NoDisplacementBoundaryCondition(BoundaryCondition):
@@ -133,6 +135,7 @@ class StrainRateExpression(fe.UserExpression):
     def update_time(self, time):
         self.time = time
 
+
 # Define class for Constant Strain Rate boundary condition
 class ConstantStrainRateBoundaryCondition(BoundaryCondition):
     def __init__(self, V, on_boundary, strain_rate):
@@ -148,18 +151,25 @@ class ConstantStrainRateBoundaryCondition(BoundaryCondition):
     def update_time(self, time_step):
         self.strain_rate_expr.update_time(time_step)
 
-# Define the boundary conditions
-boundary_conditions = {
-    'bottom': ConstantStrainRateBoundaryCondition(V, lambda x, on_boundary: on_boundary and fe.near(x[1], 0.0), -C_strain_rate) if two_layers else NoDisplacementBoundaryCondition(V, lambda x, on_boundary: on_boundary and fe.near(x[1], 0.0)),
-    'top': ConstantStrainRateBoundaryCondition(V, lambda x, on_boundary: on_boundary and fe.near(x[1], l_y), C_strain_rate)
-}
 
+# Define the boundary location functions
+is_bottom_boundary = lambda x, on_boundary: on_boundary and fe.near(x[1], 0.0)
+is_top_boundary = lambda x, on_boundary: on_boundary and fe.near(x[1], l_y)
+
+# Define the bottom boundary condition, which depends on 'two_layers' flag
+if two_layers:
+    bottom_condition = ConstantStrainRateBoundaryCondition(V, is_bottom_boundary, -C_strain_rate)
+else:
+    bottom_condition = NoDisplacementBoundaryCondition(V, is_bottom_boundary)
+
+# Define the top boundary condition
+top_condition = ConstantStrainRateBoundaryCondition(V, is_top_boundary, C_strain_rate)
 
 # Generate the Dirichlet boundary conditions
-bc = [condition.get_condition() for condition in boundary_conditions.values()]
+bc = [bottom_condition.get_condition(), top_condition.get_condition()]
 
 # Generate homogenized boundary conditions
-bc_iter = [condition.get_homogenized_condition() for condition in boundary_conditions.values()]
+bc_iter = [bottom_condition.get_homogenized_condition(), top_condition.get_homogenized_condition()]
 
 
 # Util
@@ -462,7 +472,7 @@ while time < endTime:
     i += 1
 
     # update the displacement boundary
-    for condition in boundary_conditions.values():
+    for condition in [bottom_condition, top_condition]:
         if isinstance(condition, ConstantStrainRateBoundaryCondition):
             condition.update_time(time_step)
 
