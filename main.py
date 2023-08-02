@@ -331,8 +331,8 @@ def main():
                 condition.update_time(time_step)
         A, Res = fe.assemble_system(a_Newton, res, bc)
         nRes0 = Res.norm("l2")
-        print("Step:", str(i + 1), "time", time, "s")
-        print("displacement", C_strain_rate.values()[0] * time, "mm")
+        print(f"Step: {i + 1}, time: {time} s")
+        print(f"displacement: {C_strain_rate.values()[0] * time} mm")
 
         niter = 0
         nRes = nRes0
@@ -355,8 +355,7 @@ def main():
             niter += 1
 
         if nRes > 1 or np.isnan(nRes):
-            print("ERROR: diverged!")
-            exit(-1)
+            raise Exception("ERROR: Calculation diverged!")
 
         # update displacement
         u.assign(u + Du)
@@ -381,8 +380,8 @@ def main():
             plot_vm(i, sig_eq_p)
 
         # project the von-mises stress for plotting
-        stress_max_t += [np.abs(np.amax(sig_eq_p.vector()[:]))]
-        stress_mean_t += [np.abs(np.mean(sig_eq_p.vector()[:]))]
+        stress_max_t.extend([np.abs(np.amax(sig_eq_p.vector()[:]))])
+        stress_mean_t.extend([np.abs(np.mean(sig_eq_p.vector()[:]))])
 
         # displacement at the middle of the bar in y-direction
         disp_t.append(u(l_x / 2, l_y)[1])
