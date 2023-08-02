@@ -260,7 +260,8 @@ def check_convergence(nRes, nRes0, tol, niter, Nitermax):
     return niter == 0 or (nRes0 > 0 and nRes / nRes0 > tol and niter < Nitermax)
 
 
-def run_newton_raphson(A, Res, a_Newton, res, bc_iter, du, Du, sig_old, p, sig_0_local, C_linear_h_local, mu_local, lmbda_local_DG, mu_local_DG, sig, n_elas, beta, sig_hyd, W, W0, dxm, Nitermax, tol):
+def run_newton_raphson(A, Res, a_Newton, res, bc_iter, du, Du, sig_old, p, sig_0_local, C_linear_h_local, mu_local,
+                       lmbda_local_DG, mu_local_DG, sig, n_elas, beta, sig_hyd, W, W0, dxm, Nitermax, tol):
     nRes0 = Res.norm("l2")
     niter = 0
     nRes = nRes0
@@ -269,7 +270,8 @@ def run_newton_raphson(A, Res, a_Newton, res, bc_iter, du, Du, sig_old, p, sig_0
         Du.assign(Du + du)
         deps = eps(Du)
 
-        sig_, n_elas_, beta_, dp_, sig_hyd_ = proj_sig(deps, sig_old, p, sig_0_local, C_linear_h_local, mu_local, lmbda_local_DG, mu_local_DG)
+        sig_, n_elas_, beta_, dp_, sig_hyd_ = proj_sig(deps, sig_old, p, sig_0_local, C_linear_h_local, mu_local,
+                                                       lmbda_local_DG, mu_local_DG)
         local_project(sig_, W, dxm, sig)
         local_project(n_elas_, W, dxm, n_elas)
         local_project(beta_, W0, dxm, beta)
@@ -284,7 +286,8 @@ def run_newton_raphson(A, Res, a_Newton, res, bc_iter, du, Du, sig_old, p, sig_0
     return nRes, dp_
 
 
-def update_and_store_results(i, Du, dp_, sig, sig_old, sig_hyd, sig_hyd_avg, p, W0, dxm, P0, u, l_x, l_y, time, file_results, stress_max_t, stress_mean_t, disp_t):
+def update_and_store_results(i, Du, dp_, sig, sig_old, sig_hyd, sig_hyd_avg, p, W0, dxm, P0, u, l_x, l_y, time,
+                             file_results, stress_max_t, stress_mean_t, disp_t):
     # update displacement
     u.assign(u + Du)
     # update plastic strain
@@ -320,8 +323,9 @@ def update_and_store_results(i, Du, dp_, sig, sig_old, sig_hyd, sig_hyd_avg, p, 
     file_results.write(p_avg, time)
 
 
+def main() -> None:
+    """Main function to run the simulation."""
 
-def main():
     # Load configuration and material properties
     config, substrate_props, layer_props = load_simulation_config()
     summarize_and_print_config(config, [substrate_props, layer_props])
@@ -331,9 +335,11 @@ def main():
 
     # Set up numerical parameters
     strain_rate = fe.Constant(0.000001)  # 0.01/s
+
     # Set up numerical variables and functions
-    (V, u, du, Du, W, sig, sig_old, n_elas, W0, beta, p, sig_hyd, local_initial_stress, local_shear_modulus, lmbda_local,
-     local_linear_hardening, P0, sig_hyd_avg, sig_0_test, lmbda_test, DG, deg_stress) = setup_numerical_stuff(config, mesh)
+    (V, u, du, Du, W, sig, sig_old, n_elas, W0, beta, p, sig_hyd, local_initial_stress,
+     local_shear_modulus, lmbda_local, local_linear_hardening, P0, sig_hyd_avg,
+     sig_0_test, lmbda_test, DG, deg_stress) = setup_numerical_stuff(config, mesh)
 
     # Set up boundary conditions
     bc, bc_iter, conditions = setup_boundary_conditions(V, config.use_two_material_layers, strain_rate, l_y)
@@ -354,7 +360,8 @@ def main():
     local_linear_hardening_DG = fe.Function(DG)
     assign_local_values(substrate_props.linear_isotropic_hardening, layer_props.linear_isotropic_hardening, local_linear_hardening_DG, DG, config)
 
-    newton_lhs = fe.inner(eps(v), sigma_tang(eps(u_), n_elas, mu_local_DG, local_linear_hardening_DG, beta, lmbda_local_DG)) * dxm
+    newton_lhs = fe.inner(eps(v), sigma_tang(eps(u_), n_elas, mu_local_DG, local_linear_hardening_DG, beta,
+                                             lmbda_local_DG)) * dxm
     newton_rhs = -fe.inner(eps(u_), as_3D_tensor(sig)) * dxm
 
     results_file = fe.XDMFFile("plasticity_results.xdmf")
@@ -365,36 +372,43 @@ def main():
     max_iters, tolerance = 100, 1e-8  # parameters of the Newton-Raphson procedure
     time_step = config.integration_time_limit / (config.total_timesteps)
 
+    # Assign layer values
     local_initial_stress = assign_layer_values(substrate_props.yield_strength, layer_props.yield_strength, W0, config)
     local_shear_modulus = assign_layer_values(substrate_props.shear_modulus, layer_props.shear_modulus, W0, config)
-    local_linear_hardening = assign_layer_values(substrate_props.linear_isotropic_hardening, layer_props.linear_isotropic_hardening, W0, config)
+    local_linear_hardening = assign_layer_values(substrate_props.linear_isotropic_hardening,
+                                                 layer_props.linear_isotropic_hardening, W0, config)
 
-    # Initializing result and time step lists
+    # Initialize result and time step lists
     displacement_over_time = [(0, 0)]
     max_stress_over_time = [0]
     mean_stress_over_time = [0]
     displacement_list = [0]
 
     time = 0
-    i = 0
+    iteration = 0
 
     while time < config.integration_time_limit:
         time += time_step
-        i += 1
+        iteration += 1
         for condition in conditions:
             if isinstance(condition, ConstantStrainRateBoundaryCondition):
                 condition.update_time(time_step)
         A, Res = fe.assemble_system(newton_lhs, newton_rhs, bc)
-        print(f"Step: {i + 1}, time: {time} s")
+        print(f"Step: {iteration + 1}, time: {time} s")
         print(f"displacement: {strain_rate.values()[0] * time} mm")
 
-        newton_res_norm, plastic_strain_update = run_newton_raphson(A, Res, newton_lhs, newton_rhs, bc_iter, du, Du, sig_old, p, local_initial_stress, local_linear_hardening,
-                                  local_shear_modulus, lmbda_local_DG, mu_local_DG, sig, n_elas, beta, sig_hyd, W, W0, dxm, max_iters, tolerance)
+        newton_res_norm, plastic_strain_update = run_newton_raphson(
+            A, Res, newton_lhs, newton_rhs, bc_iter, du, Du, sig_old, p, local_initial_stress, local_linear_hardening,
+            local_shear_modulus, lmbda_local_DG, mu_local_DG, sig, n_elas, beta, sig_hyd, W, W0, dxm, max_iters,
+            tolerance)
 
         if newton_res_norm > 1 or np.isnan(newton_res_norm):
-            raise Exception("ERROR: Calculation diverged!")
+            raise ValueError("ERROR: Calculation diverged!")
 
-        update_and_store_results(i, Du, plastic_strain_update, sig, sig_old, sig_hyd, sig_hyd_avg, p, W0, dxm, P0, u, l_x, l_y, time, results_file, max_stress_over_time, mean_stress_over_time, displacement_list)
+        update_and_store_results(
+            iteration, Du, plastic_strain_update, sig, sig_old, sig_hyd, sig_hyd_avg, p, W0, dxm, P0, u, l_x, l_y, time,
+            results_file, max_stress_over_time, mean_stress_over_time, displacement_list
+        )
 
         displacement_over_time += [(np.abs(u(l_x / 2, l_y)[1]) / l_y, time)]
 
