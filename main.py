@@ -182,7 +182,6 @@ def eps(displacement):
     :return: strain tensor
     """
     e = fe.sym(fe.nabla_grad(displacement))
-    # e= 0.5 * (fe.nabla_grad(u) + fe.nabla_grad(u).T)
     return fe.as_tensor([[e[0, 0], e[0, 1], 0],
                          [e[0, 1], e[1, 1], 0],
                          [0, 0, 0]])
@@ -194,20 +193,13 @@ def sigma(strain):
     :param strain: Strain (epsilon)
     :return: Cauchy Stress Tensor
     """
-    # return lmbda * fe.tr(strain) * fe.Identity(3) + 2 * C_mu * strain
-    # return lmbda * fe.tr(strain) * fe.Identity(3) + 2 * mu_local_V * strain #todo: line is broken
-    # return lmbda * fe.tr(strain) * fe.Identity(3) + 2 * mu_local_DG * strain
     return lmbda_local_DG * fe.tr(strain) * fe.Identity(3) + 2 * mu_local_DG * strain
 
 
 def sigma_tang(e):
     N_elas = as_3D_tensor(n_elas)
-    # return sigma(e) - 3 * C_mu * (3 * C_mu / (3 * C_mu + C_linear_isotropic_hardening) - beta) * fe.inner(N_elas,
-    #                                                                            e) * N_elas - 2 * C_mu * beta * fe.dev(e)
-
     return sigma(e) - 3 * mu_local_DG * (3 * mu_local_DG / (3 * mu_local_DG + C_linear_h_local_DG) - beta) * fe.inner(
-        N_elas,
-        e) * N_elas - 2 * mu_local_DG * beta * fe.dev(e)
+        N_elas, e) * N_elas - 2 * mu_local_DG * beta * fe.dev(e)
 
 
 # Von-Mises Stress
@@ -348,21 +340,6 @@ time_step = simulation_config.integration_time_limit / (simulation_config.total_
 
 
 # assign local values to the layers
-class set_yield(fe.UserExpression):
-    # Return the diffusion coefficient at a point scaled by level set function
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-    def eval(self, value, x):
-        if x[0] > simulation_config.width:
-            value[0] = C_sig0_outer
-        else:
-            value[0] = C_sig0
-
-    def value_shape(self):
-        return ()
-
-
 class set_layer(fe.UserExpression):
     # Return the diffusion coefficient at a point scaled by level set function
     def __init__(self, inner_value, outer_value, **kwargs):
@@ -378,10 +355,6 @@ class set_layer(fe.UserExpression):
 
     def value_shape(self):
         return ()
-
-
-# test = set_yield()
-# sig_0_local = fe.interpolate(test, W0)
 
 test = set_layer(C_sig0, C_sig0_outer)
 sig_0_local = fe.interpolate(test, W0)
