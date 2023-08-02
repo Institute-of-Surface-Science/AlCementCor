@@ -281,26 +281,6 @@ dxm = ufl.dx(metadata=metadata)
 v = fe.TrialFunction(V)
 u_ = fe.TestFunction(V)
 
-
-class set_layer_2(fe.UserExpression):
-    # Return the diffusion coefficient at a point scaled by level set function
-    def __init__(self, inner_value, outer_value, **kwargs):
-        self.inner = inner_value
-        self.outer = outer_value
-        super().__init__(**kwargs)
-
-    def eval(self, value, x):
-        if x[0] > simulation_config.width:
-            value[0] = self.outer
-            value[1] = self.outer
-        else:
-            value[0] = self.inner
-            value[1] = self.inner
-
-    def value_shape(self):
-        return (2,)
-
-
 def assign_local_values(values, outer_values, local_DG):
     dofmap = DG.tabulate_dof_coordinates()[:]
     vec = np.zeros(dofmap.shape[0])
@@ -351,15 +331,13 @@ class set_layer(fe.UserExpression):
     def value_shape(self):
         return ()
 
-test = set_layer(C_sig0, C_sig0_outer)
-sig_0_local = fe.interpolate(test, W0)
+def assign_layer_values(inner_value, outer_value, W0):
+    layer = set_layer(inner_value, outer_value)
+    return fe.interpolate(layer, W0)
 
-test = set_layer(C_mu, C_mu_outer)
-mu_local = fe.interpolate(test, W0)
-
-test = set_layer(C_linear_isotropic_hardening, C_linear_isotropic_hardening_outer)
-C_linear_h_local = fe.interpolate(test, W0)
-
+sig_0_local = assign_layer_values(C_sig0, C_sig0_outer, W0)
+mu_local = assign_layer_values(C_mu, C_mu_outer, W0)
+C_linear_h_local = assign_layer_values(C_linear_isotropic_hardening, C_linear_isotropic_hardening_outer, W0)
 
 results = []
 stress_max_t = []
