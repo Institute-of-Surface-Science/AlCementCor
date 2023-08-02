@@ -9,7 +9,7 @@
         "use_two_material_layers": true,
         "integration_time_limit": 175000,
         "total_timesteps": 10000,
-        "chosen_hardening_model": "linear",
+        "hardening_model": "linear",
         "field_input_file": null
     },
     "material_dimensions": {

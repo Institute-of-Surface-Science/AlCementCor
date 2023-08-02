@@ -19,7 +19,7 @@ simulation_config = config.SimulationConfig('simulation_config.json')
 two_layers = simulation_config.use_two_material_layers
 endTime = simulation_config.integration_time_limit
 no_of_timesteps = simulation_config.total_timesteps
-selected_hardening_model = simulation_config.chosen_hardening_model
+selected_hardening_model = simulation_config.hardening_model
 
 # Check if the field_input_file is set in the configuration file
 if simulation_config.field_input_file:

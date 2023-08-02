@@ -29,7 +29,7 @@ class SimulationFields(Enum):
         The key to access the time limit for integration in the simulation.
     TOTAL_TIMESTEPS : str
         The key to access the total number of time steps in the simulation.
-    CHOSEN_HARDENING_MODEL : str
+    hardening_model : str
         The key to access the type of hardening model chosen for the simulation.
     FIELD_INPUT_FILE : str
         The key to access the name of the input file for the simulation field.
@@ -52,7 +52,7 @@ class SimulationFields(Enum):
     USE_TWO_MATERIAL_LAYERS = "use_two_material_layers"
     INTEGRATION_TIME_LIMIT = "integration_time_limit"
     TOTAL_TIMESTEPS = "total_timesteps"
-    CHOSEN_HARDENING_MODEL = "chosen_hardening_model"
+    hardening_model = "hardening_model"
     FIELD_INPUT_FILE = "field_input_file"
 
     MATERIAL_DIMENSIONS = "material_dimensions"
@@ -93,7 +93,7 @@ class SimulationConfig:
         Specifies the endpoint for the time integration in the simulation (getter only).
     total_timesteps : int
         Specifies the total number of timesteps for the simulation (getter only).
-    chosen_hardening_model : str
+    hardening_model : str
         Specifies the type of hardening model to be used in the simulation (getter only).
     field_input_file : str
         Specifies the file from which to read the simulation field input data (getter only).
@@ -157,8 +157,8 @@ class SimulationConfig:
         return self._config[SimulationFields.SIMULATION_PARAMETERS.value][SimulationFields.TOTAL_TIMESTEPS.value]
 
     @property
-    def chosen_hardening_model(self):
-        return self._config[SimulationFields.SIMULATION_PARAMETERS.value][SimulationFields.CHOSEN_HARDENING_MODEL.value]
+    def hardening_model(self):
+        return self._config[SimulationFields.SIMULATION_PARAMETERS.value][SimulationFields.hardening_model.value]
 
     @property
     def field_input_file(self):
