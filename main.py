@@ -323,22 +323,20 @@ def update_and_store_results(i, Du, dp_, sig, sig_old, sig_hyd, sig_hyd_avg, p, 
 
 def main():
     # Load configuration and material properties
-    simulation_config, properties_substrate, properties_layer = load_simulation_config()
-    summarize_and_print_config(simulation_config, [properties_substrate, properties_layer])
+    config, substrate_props, layer_props = load_simulation_config()
+    summarize_and_print_config(config, [substrate_props, layer_props])
 
     # Geometry setup
-    mesh, l_x, l_y = setup_geometry(simulation_config)
+    mesh, l_x, l_y = setup_geometry(config)
 
     # Set up numerical parameters
-    C_strain_rate = fe.Constant(0.000001)  # 0.01/s
+    strain_rate = fe.Constant(0.000001)  # 0.01/s
     # Set up numerical variables and functions
-    (V, u, du, Du, W, sig, sig_old, n_elas, W0, beta, p, sig_hyd, sig_0_local, mu_local, lmbda_local,
-     C_linear_h_local,
-     P0, sig_hyd_avg, sig_0_test, lmbda_test, DG, deg_stress) = setup_numerical_stuff(simulation_config, mesh)
+    (V, u, du, Du, W, sig, sig_old, n_elas, W0, beta, p, sig_hyd, local_initial_stress, local_shear_modulus, lmbda_local,
+     local_linear_hardening, P0, sig_hyd_avg, sig_0_test, lmbda_test, DG, deg_stress) = setup_numerical_stuff(config, mesh)
 
     # Set up boundary conditions
-    bc, bc_iter, conditions = setup_boundary_conditions(V, simulation_config.use_two_material_layers, C_strain_rate,
-                                                        l_y)
+    bc, bc_iter, conditions = setup_boundary_conditions(V, config.use_two_material_layers, strain_rate, l_y)
 
     metadata = {"quadrature_degree": deg_stress, "quadrature_scheme": "default"}
     dxm = ufl.dx(metadata=metadata)
@@ -348,68 +346,57 @@ def main():
 
     # calculate local mu
     mu_local_DG = fe.Function(DG)
-    assign_local_values(properties_substrate.shear_modulus, properties_layer.shear_modulus, mu_local_DG, DG,
-                        simulation_config)
+    assign_local_values(substrate_props.shear_modulus, layer_props.shear_modulus, mu_local_DG, DG, config)
 
     lmbda_local_DG = fe.Function(DG)
-    assign_local_values(properties_substrate.first_lame_parameter, properties_layer.first_lame_parameter,
-                        lmbda_local_DG, DG, simulation_config)
+    assign_local_values(substrate_props.first_lame_parameter, layer_props.first_lame_parameter, lmbda_local_DG, DG, config)
 
-    C_linear_h_local_DG = fe.Function(DG)
-    assign_local_values(properties_substrate.linear_isotropic_hardening,
-                        properties_layer.linear_isotropic_hardening, C_linear_h_local_DG, DG,
-                        simulation_config)
+    local_linear_hardening_DG = fe.Function(DG)
+    assign_local_values(substrate_props.linear_isotropic_hardening, layer_props.linear_isotropic_hardening, local_linear_hardening_DG, DG, config)
 
-    a_Newton = fe.inner(eps(v),
-                        sigma_tang(eps(u_), n_elas, mu_local_DG, C_linear_h_local_DG, beta, lmbda_local_DG)) * dxm
-    res = -fe.inner(eps(u_), as_3D_tensor(sig)) * dxm
+    newton_lhs = fe.inner(eps(v), sigma_tang(eps(u_), n_elas, mu_local_DG, local_linear_hardening_DG, beta, lmbda_local_DG)) * dxm
+    newton_rhs = -fe.inner(eps(u_), as_3D_tensor(sig)) * dxm
 
-    file_results = fe.XDMFFile("plasticity_results.xdmf")
-    file_results.parameters["flush_output"] = True
-    file_results.parameters["functions_share_mesh"] = True
+    results_file = fe.XDMFFile("plasticity_results.xdmf")
+    results_file.parameters["flush_output"] = True
+    results_file.parameters["functions_share_mesh"] = True
     P0 = fe.FunctionSpace(mesh, "DG", 0)
 
-    Nitermax, tol = 100, 1e-8  # parameters of the Newton-Raphson procedure
-    time_step = simulation_config.integration_time_limit / (simulation_config.total_timesteps)
+    max_iters, tolerance = 100, 1e-8  # parameters of the Newton-Raphson procedure
+    time_step = config.integration_time_limit / (config.total_timesteps)
 
-    sig_0_local = assign_layer_values(properties_substrate.yield_strength, properties_layer.yield_strength, W0,
-                                      simulation_config)
-    mu_local = assign_layer_values(properties_substrate.shear_modulus, properties_layer.shear_modulus, W0,
-                                   simulation_config)
-    C_linear_h_local = assign_layer_values(properties_substrate.linear_isotropic_hardening,
-                                           properties_layer.linear_isotropic_hardening, W0,
-                                           simulation_config)
+    local_initial_stress = assign_layer_values(substrate_props.yield_strength, layer_props.yield_strength, W0, config)
+    local_shear_modulus = assign_layer_values(substrate_props.shear_modulus, layer_props.shear_modulus, W0, config)
+    local_linear_hardening = assign_layer_values(substrate_props.linear_isotropic_hardening, layer_props.linear_isotropic_hardening, W0, config)
 
     # Initializing result and time step lists
-    results = [(0, 0)]
-    stress_max_t = [0]
-    stress_mean_t = [0]
-    disp_t = [0]
+    displacement_over_time = [(0, 0)]
+    max_stress_over_time = [0]
+    mean_stress_over_time = [0]
+    displacement_list = [0]
 
     time = 0
     i = 0
 
-    while time < simulation_config.integration_time_limit:
+    while time < config.integration_time_limit:
         time += time_step
         i += 1
         for condition in conditions:
             if isinstance(condition, ConstantStrainRateBoundaryCondition):
                 condition.update_time(time_step)
-        A, Res = fe.assemble_system(a_Newton, res, bc)
+        A, Res = fe.assemble_system(newton_lhs, newton_rhs, bc)
         print(f"Step: {i + 1}, time: {time} s")
-        print(f"displacement: {C_strain_rate.values()[0] * time} mm")
+        print(f"displacement: {strain_rate.values()[0] * time} mm")
 
-        nRes, dp_ = run_newton_raphson(A, Res, a_Newton, res, bc_iter, du, Du, sig_old, p, sig_0_local, C_linear_h_local,
-                                  mu_local, lmbda_local_DG, mu_local_DG, sig, n_elas, beta, sig_hyd, W, W0, dxm,
-                                  Nitermax, tol)
+        newton_res_norm, plastic_strain_update = run_newton_raphson(A, Res, newton_lhs, newton_rhs, bc_iter, du, Du, sig_old, p, local_initial_stress, local_linear_hardening,
+                                  local_shear_modulus, lmbda_local_DG, mu_local_DG, sig, n_elas, beta, sig_hyd, W, W0, dxm, max_iters, tolerance)
 
-        if nRes > 1 or np.isnan(nRes):
+        if newton_res_norm > 1 or np.isnan(newton_res_norm):
             raise Exception("ERROR: Calculation diverged!")
 
-        update_and_store_results(i, Du, dp_, sig, sig_old, sig_hyd, sig_hyd_avg, p, W0, dxm, P0, u, l_x, l_y, time,
-                                 file_results, stress_max_t, stress_mean_t, disp_t)
+        update_and_store_results(i, Du, plastic_strain_update, sig, sig_old, sig_hyd, sig_hyd_avg, p, W0, dxm, P0, u, l_x, l_y, time, results_file, max_stress_over_time, mean_stress_over_time, displacement_list)
 
-        results += [(np.abs(u(l_x / 2, l_y)[1]) / l_y, time)]
+        displacement_over_time += [(np.abs(u(l_x / 2, l_y)[1]) / l_y, time)]
 
 
 if __name__ == "__main__":
