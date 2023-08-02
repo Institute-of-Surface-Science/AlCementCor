@@ -300,20 +300,12 @@ class set_layer_2(fe.UserExpression):
 
 
 # calculate local mu
-# test2 = set_layer_2(C_mu, C_mu)
-# mu_local_V = fe.interpolate(test2, V)
 mu_local_DG = fe.Function(DG)
 dofmap = DG.tabulate_dof_coordinates()[:]
 mu_vec = np.zeros(dofmap.shape[0])
 mu_vec[:] = C_mu
 mu_vec[dofmap[:, 0] > simulation_config.width] = C_mu_outer
 mu_local_DG.vector()[:] = mu_vec
-# print(dofmap)
-# print(dofmap.shape)
-# u_DG = fe.XDMFFile("u.xdmf")
-# u_DG << fe.project(mu_local_DG, V)
-# # mu_local_DG = fe.project(test2, DG)
-# exit()
 
 lmbda_local_DG = fe.Function(DG)
 dofmap = DG.tabulate_dof_coordinates()[:]
@@ -321,19 +313,6 @@ lmbda_vec = np.zeros(dofmap.shape[0])
 lmbda_vec[:] = lmbda
 lmbda_vec[dofmap[:, 0] > simulation_config.width] = lmbda_outer
 lmbda_local_DG.vector()[:] = lmbda_vec
-
-# lmbda_test.assign(fe.project(lmbda_local_DG, P0))
-
-# plt.figure()
-# # plt.plot(results[:, 0], results[:, 1], "-o")
-# ax = fe.plot(lmbda_test)
-# cbar = plt.colorbar(ax)
-# plt.xlabel("x")
-# plt.ylabel("y$")
-# # plt.show()
-# plt.savefig("testlmbda.svg")
-# plt.close()
-# exit()
 
 C_linear_h_local_DG = fe.Function(DG)
 dofmap = DG.tabulate_dof_coordinates()[:]
@@ -347,8 +326,6 @@ a_Newton = fe.inner(eps(v), sigma_tang(eps(u_))) * dxm
 res = -fe.inner(eps(u_), as_3D_tensor(sig)) * dxm
 
 cellV = local_project(fe.CellVolume(mesh), P0)
-# print("minV:", np.amin(cellV.vector()[:]), "maxV", np.amax(cellV.vector()[:]))
-# print("H", H.values()[0])
 
 file_results = fe.XDMFFile("plasticity_results.xdmf")
 file_results.parameters["flush_output"] = True
@@ -404,22 +381,6 @@ mu_local = fe.interpolate(test, W0)
 
 test = set_layer(C_linear_isotropic_hardening, C_linear_isotropic_hardening_outer)
 C_linear_h_local = fe.interpolate(test, W0)
-
-# #mu_local_V = fe.project(mu_local, V)
-# test2 = set_layer_2(C_mu, C_mu)
-# mu_local_V = fe.interpolate(test2, V)
-
-# sig_0_test.assign(fe.project(sig_0_local, P0))
-
-# plt.figure()
-# # plt.plot(results[:, 0], results[:, 1], "-o")
-# ax = fe.plot(sig_0_test)
-# cbar = plt.colorbar(ax)
-# plt.xlabel("x")
-# plt.ylabel("y$")
-# # plt.show()
-# plt.savefig("test.svg")
-# plt.close()
 
 results = []
 stress_max_t = []
