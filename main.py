@@ -85,6 +85,7 @@ def setup_numerical_stuff(simulation_config, mesh):
                                            ["Avg. Hydrostatic stress", "test", "test2"]]
     return V, u, du, Du, W, sig, sig_old, n_elas, W0, beta, p, sig_hyd, sig_0_local, mu_local, lmbda_local, C_linear_h_local, P0, sig_hyd_avg, sig_0_test, lmbda_test, DG, deg_stress
 
+
 def plot_vm(i, sig_eq_p):
     plt.figure()
     # plt.plot(results[:, 0], results[:, 1], "-o")
@@ -148,7 +149,7 @@ def sigma(strain, lmbda_local_DG, mu_local_DG):
 def sigma_tang(e, n_elas, mu_local_DG, C_linear_h_local_DG, beta, lmbda_local_DG):
     N_elas = as_3D_tensor(n_elas)
     return sigma(e, lmbda_local_DG, mu_local_DG) - 3 * mu_local_DG * (
-                3 * mu_local_DG / (3 * mu_local_DG + C_linear_h_local_DG) - beta) * fe.inner(
+            3 * mu_local_DG / (3 * mu_local_DG + C_linear_h_local_DG) - beta) * fe.inner(
         N_elas, e) * N_elas - 2 * mu_local_DG * beta * fe.dev(e)
 
 
@@ -269,7 +270,9 @@ def main():
 
     # Set up numerical parameters
     C_strain_rate = fe.Constant(0.000001)  # 0.01/s
-    (V, u, du, Du, W, sig, sig_old, n_elas, W0, beta, p, sig_hyd, sig_0_local, mu_local, lmbda_local, C_linear_h_local,
+    # Set up numerical variables and functions
+    (V, u, du, Du, W, sig, sig_old, n_elas, W0, beta, p, sig_hyd, sig_0_local, mu_local, lmbda_local,
+     C_linear_h_local,
      P0, sig_hyd_avg, sig_0_test, lmbda_test, DG, deg_stress) = setup_numerical_stuff(simulation_config, mesh)
 
     # Set up boundary conditions
@@ -284,20 +287,21 @@ def main():
 
     # calculate local mu
     mu_local_DG = fe.Function(DG)
-    assign_local_values(properties_substrate.shear_modulus, properties_layer.shear_modulus, mu_local_DG, DG, simulation_config)
+    assign_local_values(properties_substrate.shear_modulus, properties_layer.shear_modulus, mu_local_DG, DG,
+                        simulation_config)
 
     lmbda_local_DG = fe.Function(DG)
-    assign_local_values(properties_substrate.first_lame_parameter, properties_layer.first_lame_parameter, lmbda_local_DG, DG, simulation_config)
+    assign_local_values(properties_substrate.first_lame_parameter, properties_layer.first_lame_parameter,
+                        lmbda_local_DG, DG, simulation_config)
 
     C_linear_h_local_DG = fe.Function(DG)
-    assign_local_values(properties_substrate.linear_isotropic_hardening, properties_layer.linear_isotropic_hardening, C_linear_h_local_DG, DG,
+    assign_local_values(properties_substrate.linear_isotropic_hardening,
+                        properties_layer.linear_isotropic_hardening, C_linear_h_local_DG, DG,
                         simulation_config)
 
     a_Newton = fe.inner(eps(v),
                         sigma_tang(eps(u_), n_elas, mu_local_DG, C_linear_h_local_DG, beta, lmbda_local_DG)) * dxm
     res = -fe.inner(eps(u_), as_3D_tensor(sig)) * dxm
-
-    # cellV = local_project(fe.CellVolume(mesh), P0)
 
     file_results = fe.XDMFFile("plasticity_results.xdmf")
     file_results.parameters["flush_output"] = True
@@ -308,9 +312,12 @@ def main():
     Nitermax, tol = 100, 1e-8  # parameters of the Newton-Raphson procedure
     time_step = simulation_config.integration_time_limit / (simulation_config.total_timesteps)
 
-    sig_0_local = assign_layer_values(properties_substrate.yield_strength, properties_layer.yield_strength, W0, simulation_config)
-    mu_local = assign_layer_values(properties_substrate.shear_modulus, properties_layer.shear_modulus, W0, simulation_config)
-    C_linear_h_local = assign_layer_values(properties_substrate.linear_isotropic_hardening, properties_layer.linear_isotropic_hardening, W0,
+    sig_0_local = assign_layer_values(properties_substrate.yield_strength, properties_layer.yield_strength, W0,
+                                      simulation_config)
+    mu_local = assign_layer_values(properties_substrate.shear_modulus, properties_layer.shear_modulus, W0,
+                                   simulation_config)
+    C_linear_h_local = assign_layer_values(properties_substrate.linear_isotropic_hardening,
+                                           properties_layer.linear_isotropic_hardening, W0,
                                            simulation_config)
 
     # Initializing result and time step lists
@@ -322,7 +329,6 @@ def main():
     time = 0
     i = 0
 
-    # for (i, time) in enumerate(time_steps):
     while time < simulation_config.integration_time_limit:
         time += time_step
         i += 1
@@ -341,8 +347,8 @@ def main():
             Du.assign(Du + du)
             deps = eps(Du)
 
-            sig_, n_elas_, beta_, dp_, sig_hyd_ = proj_sig(deps, sig_old, p, sig_0_local, C_linear_h_local, mu_local,
-                                                           lmbda_local_DG, mu_local_DG)
+            sig_, n_elas_, beta_, dp_, sig_hyd_ = proj_sig(deps, sig_old, p, sig_0_local, C_linear_h_local,
+                                                           mu_local, lmbda_local_DG, mu_local_DG)
             local_project(sig_, W, dxm, sig)
             local_project(n_elas_, W, dxm, n_elas)
             local_project(beta_, W0, dxm, beta)
@@ -372,18 +378,18 @@ def main():
         sig_n = as_3D_tensor(sig)
         s = fe.dev(sig_n)
 
-        # calculate the von-mises stress
+        # calculate the von-mises equivalent stress
         sig_eq = fe.sqrt(3 / 2. * fe.inner(s, s))
         sig_eq_p = local_project(sig_eq, P0, dxm)
 
         if i % 10 == 0:
             plot_vm(i, sig_eq_p)
 
-        # project the von-mises stress for plotting
+        # calculate and project the von-mises stress for later use
         stress_max_t.extend([np.abs(np.amax(sig_eq_p.vector()[:]))])
         stress_mean_t.extend([np.abs(np.mean(sig_eq_p.vector()[:]))])
 
-        # displacement at the middle of the bar in y-direction
+        # append the y-displacement at the center of the bar
         disp_t.append(u(l_x / 2, l_y)[1])
 
         file_results.write(u, time)
