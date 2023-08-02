@@ -13,8 +13,8 @@
         "field_input_file": null
     },
     "material_dimensions": {
-        "layer_thickness": 2.5,
-        "length": 1.5,
-        "width": null
+        "length": 90.0,
+        "width": 5.0
     }
 }
+

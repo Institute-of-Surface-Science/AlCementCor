@@ -17,7 +17,7 @@
         "width": null
     },
     "layer-1": {
-        "thickness": null,
+        "thickness": 0.2,
         "direction": "X"
     }
 }

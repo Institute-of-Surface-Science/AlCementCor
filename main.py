@@ -27,11 +27,11 @@ if simulation_config.field_input_file:
     result = input_file.process_input_tensors(simulation_config.field_input_file, plot=True)
 
     # Access thickness and length directly from the result dictionary
-    thickness_al = result[input_file.ExternalInput.WIDTH.value]
+    width = result[input_file.ExternalInput.WIDTH.value]
     length = result[input_file.ExternalInput.LENGTH.value]
 else:
     # If it isn't, load the thickness and length from the configuration file
-    thickness_al = simulation_config.width
+    width = simulation_config.width
     length = simulation_config.length
 
 # # Define old coordinates
@@ -64,19 +64,19 @@ lmbda_outer = properties_ceramic.first_lame_parameter
 C_Et_outer = properties_ceramic.tangent_modulus
 C_linear_isotropic_hardening_outer = properties_ceramic.linear_isotropic_hardening
 
+# Length refers to the y-length
+# Width refers to the x-length
 # Geometry of the domain
 ##########################################
-l_inner_x = 5.0  # mm
-l_inner_y = 90.0  # mm
+l_inner_x = width  # mm
+l_inner_y = length  # mm
 
-l_outer_x = 2.0  # mm
+l_outer_x = 0.0  # mm
 l_outer_y = 0.0  # mm
 
+# todo: handle direction
 if two_layers:
-    l_inner_x = thickness_al  # mm
-    l_inner_y = length  # mm
-
-    l_outer_x = 0.2  # mm
+    l_outer_x = simulation_config.layer_1_thickness  # mm
     l_outer_y = 0.0  # mm
 
 l_x = l_inner_x + l_outer_x
