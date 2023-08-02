@@ -351,7 +351,7 @@ def main():
             A, Res = fe.assemble_system(a_Newton, res, bc_iter)
 
             nRes = Res.norm("l2")
-            print("    Residual:", nRes)
+            print(f"Residual: {nRes}")
             niter += 1
 
         if nRes > 1 or np.isnan(nRes):
