@@ -16,7 +16,8 @@ fe.parameters["form_compiler"]["representation"] = 'quadrature'
 warnings.simplefilter("once", QuadratureRepresentationDeprecationWarning)
 
 
-def summarize_and_print_config(simulation_config: config.SimulationConfig, materials: List[mat_prop.MaterialProperties]) -> None:
+def summarize_and_print_config(simulation_config: config.SimulationConfig,
+                               materials: List[mat_prop.MaterialProperties]) -> None:
     # Print simulation configuration
     print("\nSimulation Configuration:")
     print("---------------------------------------")
