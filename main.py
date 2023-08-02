@@ -80,14 +80,8 @@ if simulation_config.field_input_file:
     result = input_file.process_input_tensors(simulation_config.field_input_file, plot=True)
 
     # Access thickness and length directly from the result dictionary
-    width = result[input_file.ExternalInput.WIDTH.value]
-    length = result[input_file.ExternalInput.LENGTH.value]
-    simulation_config.width = width
-    simulation_config.length = length
-else:
-    # If it isn't, load the thickness and length from the configuration file
-    width = simulation_config.width
-    length = simulation_config.length
+    simulation_config.width = result[input_file.ExternalInput.WIDTH.value]
+    simulation_config.length = result[input_file.ExternalInput.LENGTH.value]
 
 # # Define old coordinates
 # old_coordinates = np.array([result[input_file.ExternalInput.X.value], result[input_file.ExternalInput.Y.value],
@@ -125,8 +119,8 @@ summarize_and_print_config(simulation_config, [properties_al, properties_ceramic
 # Width refers to the x-length
 # Geometry of the domain
 ##########################################
-l_inner_x = width  # mm
-l_inner_y = length  # mm
+l_inner_x = simulation_config.width  # mm
+l_inner_y = simulation_config.length  # mm
 
 l_outer_x = 0.0  # mm
 l_outer_y = 0.0  # mm
