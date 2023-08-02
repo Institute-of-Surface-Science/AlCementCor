@@ -331,7 +331,6 @@ def main():
                 condition.update_time(time_step)
         A, Res = fe.assemble_system(a_Newton, res, bc)
         nRes0 = Res.norm("l2")
-        Du.interpolate(fe.Constant((0, 0)))
         print("Step:", str(i + 1), "time", time, "s")
         print("displacement", C_strain_rate.values()[0] * time, "mm")
 
@@ -368,9 +367,9 @@ def main():
         sig_old.assign(sig)
         sig_hyd_avg.assign(fe.project(sig_hyd, P0))
 
-        s11, s12, s21, s22 = sig.split(deepcopy=True)
-        avg_stress_y = np.average(s22.vector()[:])
-        avg_stress = np.average(sig.vector()[:])
+        # s11, s12, s21, s22 = sig.split(deepcopy=True)
+        # avg_stress_y = np.average(s22.vector()[:])
+        # avg_stress = np.average(sig.vector()[:])
         sig_n = as_3D_tensor(sig)
         s = fe.dev(sig_n)
 
@@ -386,7 +385,7 @@ def main():
         stress_mean_t += [np.abs(np.mean(sig_eq_p.vector()[:]))]
 
         # displacement at the middle of the bar in y-direction
-        disp_t += [u(l_x / 2, l_y)[1]]
+        disp_t.append(u(l_x / 2, l_y)[1])
 
         file_results.write(u, time)
         p_avg.assign(fe.project(p, P0))
