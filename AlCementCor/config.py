@@ -83,6 +83,10 @@ class SimulationFields(Enum):
     STRAIN_RATE_X = "x"
     STRAIN_RATE_Y = "y"
 
+    FINITE_ELEMENT_DEGREES = "FiniteElementDegrees"
+    FEM_DEG_U = "u"
+    FEM_DEG_STRESS = "stress"
+
 
 class SimulationConfig:
     """
@@ -261,3 +265,13 @@ class SimulationConfig:
     def strain_rate_y(self) -> Any:
         return self.get(SimulationFields.SIMULATION_PARAMETERS.value, SimulationFields.CONSTANT_STRAIN_RATE.value,
                         SimulationFields.STRAIN_RATE_Y.value, None)
+
+    @property
+    def finite_element_degree_u(self) -> Any:
+        return self.get(SimulationFields.SIMULATION_PARAMETERS.value, SimulationFields.FINITE_ELEMENT_DEGREES.value,
+                        SimulationFields.FEM_DEG_U.value, None)
+
+    @property
+    def finite_element_degree_stress(self) -> Any:
+        return self.get(SimulationFields.SIMULATION_PARAMETERS.value, SimulationFields.FINITE_ELEMENT_DEGREES.value,
+                        SimulationFields.FEM_DEG_STRESS.value, None)

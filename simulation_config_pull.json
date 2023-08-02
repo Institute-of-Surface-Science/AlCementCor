@@ -18,6 +18,10 @@
         "constant_strain_rate": {
             "x": null,
             "y": 0.0001
+        },
+        "FiniteElementDegrees": {
+            "u": 2,
+            "stress": 2
         }
     },
     "material_dimensions": {

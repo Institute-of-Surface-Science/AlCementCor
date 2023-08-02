@@ -14,6 +14,10 @@
         "mesh_resolution": {
             "x": 200,
             "y": 100
+        },
+        "FiniteElementDegrees": {
+            "u": 1,
+            "stress": 2
         }
     },
     "material_dimensions": {

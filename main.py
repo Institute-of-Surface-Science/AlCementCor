@@ -65,13 +65,8 @@ summarize_and_print_config(simulation_config, [properties_al, properties_ceramic
 # Width refers to the x-length
 # Geometry of the domain
 ##########################################
-l_layer_x = 0.0  # mm
+l_layer_x = simulation_config.layer_1_thickness if two_layers else 0.0  # mm
 l_layer_y = 0.0  # mm
-
-# todo: handle direction
-if two_layers:
-    l_layer_x = simulation_config.layer_1_thickness  # mm
-    l_layer_y = 0.0  # mm
 
 l_x = simulation_config.width + l_layer_x
 l_y = simulation_config.length + l_layer_y
@@ -84,9 +79,9 @@ mesh = fe.RectangleMesh(fe.Point(0.0, 0.0), fe.Point(l_x, l_y), simulation_confi
                         simulation_config.mesh_resolution_y)
 
 # Declare Numerical Stuff
-deg_u, deg_stress = 2, 2
+deg_stress = simulation_config.finite_element_degree_stress
 
-V = fe.VectorFunctionSpace(mesh, "CG", deg_u)
+V = fe.VectorFunctionSpace(mesh, "CG", simulation_config.finite_element_degree_u)
 u, du, Du = [fe.Function(V, name=n) for n in ["Total displacement", "Iteration correction", "Current increment"]]
 
 DG = fe.FunctionSpace(mesh, "DG", 0)
