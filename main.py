@@ -294,6 +294,9 @@ def update_and_store_results(i, Du, dp_, sig, sig_old, sig_hyd, sig_hyd_avg, p, 
     sig_old.assign(sig)
     sig_hyd_avg.assign(fe.project(sig_hyd, P0))
 
+    # # s11, s12, s21, s22 = sig.split(deepcopy=True)
+    # # avg_stress_y = np.average(s22.vector()[:])
+    # # avg_stress = np.average(sig.vector()[:])
     sig_n = as_3D_tensor(sig)
     s = fe.dev(sig_n)
 
