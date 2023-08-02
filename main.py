@@ -284,6 +284,40 @@ def run_newton_raphson(A, Res, a_Newton, res, bc_iter, du, Du, sig_old, p, sig_0
     return nRes, dp_
 
 
+def update_and_store_results(i, Du, dp_, sig, sig_old, sig_hyd, sig_hyd_avg, p, W0, dxm, P0, u, l_x, l_y, time, file_results, stress_max_t, stress_mean_t, disp_t):
+    # update displacement
+    u.assign(u + Du)
+    # update plastic strain
+    p.assign(p + local_project(dp_, W0, dxm))
+
+    # update stress fields
+    sig_old.assign(sig)
+    sig_hyd_avg.assign(fe.project(sig_hyd, P0))
+
+    sig_n = as_3D_tensor(sig)
+    s = fe.dev(sig_n)
+
+    # calculate the von-mises equivalent stress
+    sig_eq = fe.sqrt(3 / 2. * fe.inner(s, s))
+    sig_eq_p = local_project(sig_eq, P0, dxm)
+
+    if i % 10 == 0:
+        plot_vm(i, sig_eq_p)
+
+    # calculate and project the von-mises stress for later use
+    stress_max_t.extend([np.abs(np.amax(sig_eq_p.vector()[:]))])
+    stress_mean_t.extend([np.abs(np.mean(sig_eq_p.vector()[:]))])
+
+    # append the y-displacement at the center of the bar
+    disp_t.append(u(l_x / 2, l_y)[1])
+
+    file_results.write(u, time)
+    p_avg = fe.Function(P0, name="Plastic strain")
+    p_avg.assign(fe.project(p, P0))
+    file_results.write(p_avg, time)
+
+
+
 def main():
     # Load configuration and material properties
     simulation_config, properties_substrate, properties_layer = load_simulation_config()
@@ -331,7 +365,6 @@ def main():
     file_results.parameters["flush_output"] = True
     file_results.parameters["functions_share_mesh"] = True
     P0 = fe.FunctionSpace(mesh, "DG", 0)
-    p_avg = fe.Function(P0, name="Plastic strain")
 
     Nitermax, tol = 100, 1e-8  # parameters of the Newton-Raphson procedure
     time_step = simulation_config.integration_time_limit / (simulation_config.total_timesteps)
@@ -370,38 +403,9 @@ def main():
         if nRes > 1 or np.isnan(nRes):
             raise Exception("ERROR: Calculation diverged!")
 
-        # update displacement
-        u.assign(u + Du)
-        # update plastic strain
-        p.assign(p + local_project(dp_, W0, dxm))
+        update_and_store_results(i, Du, dp_, sig, sig_old, sig_hyd, sig_hyd_avg, p, W0, dxm, P0, u, l_x, l_y, time,
+                                 file_results, stress_max_t, stress_mean_t, disp_t)
 
-        # update stress fields
-        sig_old.assign(sig)
-        sig_hyd_avg.assign(fe.project(sig_hyd, P0))
-
-        # s11, s12, s21, s22 = sig.split(deepcopy=True)
-        # avg_stress_y = np.average(s22.vector()[:])
-        # avg_stress = np.average(sig.vector()[:])
-        sig_n = as_3D_tensor(sig)
-        s = fe.dev(sig_n)
-
-        # calculate the von-mises equivalent stress
-        sig_eq = fe.sqrt(3 / 2. * fe.inner(s, s))
-        sig_eq_p = local_project(sig_eq, P0, dxm)
-
-        if i % 10 == 0:
-            plot_vm(i, sig_eq_p)
-
-        # calculate and project the von-mises stress for later use
-        stress_max_t.extend([np.abs(np.amax(sig_eq_p.vector()[:]))])
-        stress_mean_t.extend([np.abs(np.mean(sig_eq_p.vector()[:]))])
-
-        # append the y-displacement at the center of the bar
-        disp_t.append(u(l_x / 2, l_y)[1])
-
-        file_results.write(u, time)
-        p_avg.assign(fe.project(p, P0))
-        file_results.write(p_avg, time)
         results += [(np.abs(u(l_x / 2, l_y)[1]) / l_y, time)]
 
 
