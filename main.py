@@ -119,19 +119,16 @@ summarize_and_print_config(simulation_config, [properties_al, properties_ceramic
 # Width refers to the x-length
 # Geometry of the domain
 ##########################################
-l_inner_x = simulation_config.width  # mm
-l_inner_y = simulation_config.length  # mm
-
-l_outer_x = 0.0  # mm
-l_outer_y = 0.0  # mm
+l_layer_x = 0.0  # mm
+l_layer_y = 0.0  # mm
 
 # todo: handle direction
 if two_layers:
-    l_outer_x = simulation_config.layer_1_thickness  # mm
-    l_outer_y = 0.0  # mm
+    l_layer_x = simulation_config.layer_1_thickness  # mm
+    l_layer_y = 0.0  # mm
 
-l_x = l_inner_x + l_outer_x
-l_y = l_inner_y + l_outer_y
+l_x = simulation_config.width + l_layer_x
+l_y = simulation_config.length + l_layer_y
 
 # Discretization of the domain
 n_x = 200
