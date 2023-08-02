@@ -41,117 +41,102 @@ def setup_boundary_conditions(V, two_layers, C_strain_rate, l_y):
     return bc, bc_iter, conditions
 
 
-# Initialize a SimulationConfig object using the configuration file
-simulation_config = SimulationConfig('simulation_config.json')
+def load_simulation_config():
+    """Loads and initializes a SimulationConfig object from a JSON configuration file."""
+    simulation_config = SimulationConfig('simulation_config.json')
+    if simulation_config.field_input_file:
+        result = process_input_tensors(simulation_config.field_input_file, plot=True)
+        simulation_config.width = result[ExternalInput.WIDTH.value]
+        simulation_config.length = result[ExternalInput.LENGTH.value]
 
-two_layers = simulation_config.use_two_material_layers
-endTime = simulation_config.integration_time_limit
-no_of_timesteps = simulation_config.total_timesteps
-selected_hardening_model = simulation_config.hardening_model
+    properties_al = MaterialProperties('material_properties.json', 'Al6082-T6')
+    properties_ceramic = MaterialProperties('material_properties.json', 'Aluminium-Ceramic')
+    return simulation_config, properties_al, properties_ceramic
 
-# Check if the field_input_file is set in the configuration file
-if simulation_config.field_input_file:
-    # If it is, load the thickness and length from the file
-    result = process_input_tensors(simulation_config.field_input_file, plot=True)
 
-    # Access thickness and length directly from the result dictionary
-    simulation_config.width = result[ExternalInput.WIDTH.value]
-    simulation_config.length = result[ExternalInput.LENGTH.value]
+def setup_geometry(simulation_config):
+    """Sets up the geometry of the simulation, including layer thickness and mesh initialization."""
+    l_layer_x = simulation_config.layer_1_thickness if simulation_config.use_two_material_layers else 0.0
+    l_layer_y = 0.0
+    l_x = simulation_config.width + l_layer_x
+    l_y = simulation_config.length + l_layer_y
+    mesh = fe.RectangleMesh(fe.Point(0.0, 0.0), fe.Point(l_x, l_y), simulation_config.mesh_resolution_x,
+                            simulation_config.mesh_resolution_y)
+    return mesh, l_x, l_y
 
-# # Define old coordinates
-# old_coordinates = np.array([result[input_file.ExternalInput.X.value], result[input_file.ExternalInput.Y.value],
-#                             result[input_file.ExternalInput.Z.value]]).T
 
-# Load material properties
-properties_al = MaterialProperties('material_properties.json', 'Al6082-T6')
-properties_ceramic = MaterialProperties('material_properties.json', 'Aluminium-Ceramic')
+def setup_numerical_stuff(simulation_config, mesh):
+    """Sets up the numerical parameters for the simulation, including the function spaces."""
+    deg_stress = simulation_config.finite_element_degree_stress
+    V = fe.VectorFunctionSpace(mesh, "CG", simulation_config.finite_element_degree_u)
+    u, du, Du = [fe.Function(V, name=n) for n in ["Total displacement", "Iteration correction", "Current increment"]]
+    DG = fe.FunctionSpace(mesh, "DG", 0)
+    We = fe.VectorElement("Quadrature", mesh.ufl_cell(), degree=deg_stress, dim=4, quad_scheme='default')
+    W = fe.FunctionSpace(mesh, We)
+    sig, sig_old, n_elas = [fe.Function(W) for _ in range(3)]
+    func_names = ["Beta", "Cumulative plastic strain", "Hydrostatic stress", "local sig0",
+                  "local mu", "local lmbda", "local hardening factor"]
+    W0 = fe.FunctionSpace(mesh,
+                          fe.FiniteElement("Quadrature", mesh.ufl_cell(), degree=deg_stress, quad_scheme='default'))
+    beta, p, sig_hyd, sig_0_local, mu_local, lmbda_local, C_linear_h_local = [fe.Function(W0, name=n) for n in
+                                                                              func_names]
+    P0 = fe.FunctionSpace(mesh, "DG", 0)
+    sig_hyd_avg, sig_0_test, lmbda_test = [fe.Function(P0, name=n) for n in
+                                           ["Avg. Hydrostatic stress", "test", "test2"]]
+    return V, u, du, Du, W, sig, sig_old, n_elas, W0, beta, p, sig_hyd, sig_0_local, mu_local, lmbda_local, C_linear_h_local, P0, sig_hyd_avg, sig_0_test, lmbda_test, DG, deg_stress
 
-# Access properties for Al6082-T6
-C_E = properties_al.youngs_modulus
-C_nu = properties_al.poisson_ratio
-C_sig0 = properties_al.yield_strength
-C_mu = properties_al.shear_modulus
-lmbda = properties_al.first_lame_parameter
-C_Et = properties_al.tangent_modulus
-C_linear_isotropic_hardening = properties_al.linear_isotropic_hardening
-C_nlin_ludwik = properties_al.nonlinear_ludwik_parameter
-C_exponent_ludwik = properties_al.exponent_ludwik
-C_swift_eps0 = properties_al.swift_epsilon0
-C_exponent_swift = properties_al.exponent_swift
 
-# Access properties for Aluminium-Ceramic
-C_E_outer = properties_ceramic.youngs_modulus
-C_nu_outer = properties_ceramic.poisson_ratio
-C_sig0_outer = properties_ceramic.yield_strength
-C_mu_outer = properties_ceramic.shear_modulus
-lmbda_outer = properties_ceramic.first_lame_parameter
-C_Et_outer = properties_ceramic.tangent_modulus
-C_linear_isotropic_hardening_outer = properties_ceramic.linear_isotropic_hardening
+def extract_material_properties(properties_al, properties_ceramic):
+    """Extracts required material properties from MaterialProperties objects."""
+    # Access properties for Al6082-T6
+    C_E = properties_al.youngs_modulus
+    C_nu = properties_al.poisson_ratio
+    C_sig0 = properties_al.yield_strength
+    C_mu = properties_al.shear_modulus
+    lmbda = properties_al.first_lame_parameter
+    C_Et = properties_al.tangent_modulus
+    C_linear_isotropic_hardening = properties_al.linear_isotropic_hardening
+    C_nlin_ludwik = properties_al.nonlinear_ludwik_parameter
+    C_exponent_ludwik = properties_al.exponent_ludwik
+    C_swift_eps0 = properties_al.swift_epsilon0
+    C_exponent_swift = properties_al.exponent_swift
 
-summarize_and_print_config(simulation_config, [properties_al, properties_ceramic])
+    # Access properties for Aluminium-Ceramic
+    C_E_outer = properties_ceramic.youngs_modulus
+    C_nu_outer = properties_ceramic.poisson_ratio
+    C_sig0_outer = properties_ceramic.yield_strength
+    C_mu_outer = properties_ceramic.shear_modulus
+    lmbda_outer = properties_ceramic.first_lame_parameter
+    C_Et_outer = properties_ceramic.tangent_modulus
+    C_linear_isotropic_hardening_outer = properties_ceramic.linear_isotropic_hardening
 
-# Length refers to the y-length
-# Width refers to the x-length
-# Geometry of the domain
-##########################################
-l_layer_x = simulation_config.layer_1_thickness if two_layers else 0.0  # mm
-l_layer_y = 0.0  # mm
+    return C_E, C_nu, C_sig0, C_mu, lmbda, C_Et, C_linear_isotropic_hardening, C_nlin_ludwik, C_exponent_ludwik, C_swift_eps0, C_exponent_swift, C_E_outer, C_nu_outer, C_sig0_outer, C_mu_outer, lmbda_outer, C_Et_outer, C_linear_isotropic_hardening_outer
 
-l_x = simulation_config.width + l_layer_x
-l_y = simulation_config.length + l_layer_y
 
-# C_strain_rate = fe.Constant(0.0001)  # 1/s
+# Load configuration and material properties
+simulation_config, properties_substrate, properties_layer = load_simulation_config()
+
+# Extract material properties
+(C_E, C_nu, C_sig0, C_mu, lmbda, C_Et, C_linear_isotropic_hardening, C_nlin_ludwik, C_exponent_ludwik, C_swift_eps0,
+ C_exponent_swift, C_E_outer, C_nu_outer, C_sig0_outer, C_mu_outer, lmbda_outer, C_Et_outer,
+ C_linear_isotropic_hardening_outer) = extract_material_properties(
+    properties_substrate, properties_layer)
+
+# Summary of configuration and material properties
+summarize_and_print_config(simulation_config, [properties_substrate, properties_layer])
+
+# Geometry setup
+mesh, l_x, l_y = setup_geometry(simulation_config)
+
+# Set up numerical parameters
 C_strain_rate = fe.Constant(0.000001)  # 0.01/s
+(V, u, du, Du, W, sig, sig_old, n_elas, W0, beta, p, sig_hyd, sig_0_local, mu_local, lmbda_local, C_linear_h_local,
+ P0, sig_hyd_avg, sig_0_test, lmbda_test, DG, deg_stress) = setup_numerical_stuff(
+    simulation_config, mesh)
 
-# Initialize the mesh
-mesh = fe.RectangleMesh(fe.Point(0.0, 0.0), fe.Point(l_x, l_y), simulation_config.mesh_resolution_x,
-                        simulation_config.mesh_resolution_y)
+# Set up boundary conditions
+bc, bc_iter, conditions = setup_boundary_conditions(V, simulation_config.use_two_material_layers, C_strain_rate, l_y)
 
-# Declare Numerical Stuff
-deg_stress = simulation_config.finite_element_degree_stress
-
-V = fe.VectorFunctionSpace(mesh, "CG", simulation_config.finite_element_degree_u)
-u, du, Du = [fe.Function(V, name=n) for n in ["Total displacement", "Iteration correction", "Current increment"]]
-
-DG = fe.FunctionSpace(mesh, "DG", 0)
-We = fe.VectorElement("Quadrature", mesh.ufl_cell(), degree=deg_stress, dim=4, quad_scheme='default')
-W = fe.FunctionSpace(mesh, We)
-sig, sig_old, n_elas = [fe.Function(W) for _ in range(3)]
-
-func_names = ["Beta", "Cumulative plastic strain", "Hydrostatic stress", "local sig0",
-              "local mu", "local lmbda", "local hardening factor"]
-W0 = fe.FunctionSpace(mesh, fe.FiniteElement("Quadrature", mesh.ufl_cell(), degree=deg_stress, quad_scheme='default'))
-beta, p, sig_hyd, sig_0_local, mu_local, lmbda_local, C_linear_h_local = [fe.Function(W0, name=n) for n in func_names]
-
-P0 = fe.FunctionSpace(mesh, "DG", 0)
-sig_hyd_avg, sig_0_test, lmbda_test = [fe.Function(P0, name=n) for n in ["Avg. Hydrostatic stress", "test", "test2"]]
-
-
-# # Define boundary location conditions
-# def is_bottom_boundary(x, on_boundary):
-#     return on_boundary and fe.near(x[1], 0.0)
-#
-#
-# def is_top_boundary(x, on_boundary):
-#     return on_boundary and fe.near(x[1], l_y)
-#
-#
-# # Define the boundary conditions
-# bottom_condition = ConstantStrainRateBoundaryCondition(V, is_bottom_boundary,
-#                                                        -C_strain_rate) if two_layers else NoDisplacementBoundaryCondition(
-#     V, is_bottom_boundary)
-# top_condition = ConstantStrainRateBoundaryCondition(V, is_top_boundary, C_strain_rate)
-#
-# # Create the conditions list
-# conditions = [bottom_condition, top_condition]
-#
-# # Generate the Dirichlet boundary conditions
-# bc = [condition.get_condition() for condition in conditions]
-#
-# # Generate homogenized boundary conditions
-# bc_iter = [condition.get_homogenized_condition() for condition in conditions]
-
-bc, bc_iter, conditions = setup_boundary_conditions(V, two_layers, C_strain_rate, l_y)
 
 # Util
 ########################################################################
@@ -372,7 +357,7 @@ P0 = fe.FunctionSpace(mesh, "DG", 0)
 p_avg = fe.Function(P0, name="Plastic strain")
 
 Nitermax, tol = 100, 1e-8  # parameters of the Newton-Raphson procedure
-time_step = endTime / (no_of_timesteps)
+time_step = simulation_config.integration_time_limit / (simulation_config.total_timesteps)
 
 
 # assign local values to the layers
@@ -448,7 +433,7 @@ time = 0
 i = 0
 not_adjusted_count = 0
 # for (i, time) in enumerate(time_steps):
-while time < endTime:
+while time < simulation_config.integration_time_limit:
     time += time_step
     i += 1
 
