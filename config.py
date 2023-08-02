@@ -35,12 +35,16 @@ class SimulationFields(Enum):
         The key to access the name of the input file for the simulation field.
     MATERIAL_DIMENSIONS : str
         The key to access the dimensions of the material used in the simulation.
-    LAYER_THICKNESS : str
+    THICKNESS : str
         The key to access the thickness of the material layer.
     LENGTH : str
         The key to access the length of the material.
     WIDTH : str
         The key to access the width of the material.
+    LAYER_1 : str
+        The key to access the definition of the first outside layer
+    DIRECTION: str
+        The key to access the direction of the layer.
     """
     SIMULATION_METADATA = "simulation_metadata"
     TITLE = "title"
@@ -56,9 +60,12 @@ class SimulationFields(Enum):
     FIELD_INPUT_FILE = "field_input_file"
 
     MATERIAL_DIMENSIONS = "material_dimensions"
-    LAYER_THICKNESS = "layer_thickness"
     LENGTH = "length"
     WIDTH = "width"
+
+    LAYER_1 = "layer-1"
+    THICKNESS = "thickness"
+    DIRECTION = "direction"
 
 
 class SimulationConfig:
@@ -97,12 +104,14 @@ class SimulationConfig:
         Specifies the type of hardening model to be used in the simulation (getter only).
     field_input_file : str
         Specifies the file from which to read the simulation field input data (getter only).
-    layer_thickness : float
+    layer_1_thickness : float
         Specifies the thickness of the material layer in the simulation (getter only).
     length : float
         Specifies the length of the material in the simulation (getter only).
     width : float
         Specifies the width of the material in the simulation (getter only).
+    layer_1_direction : array-like (3D)
+        Normal vector in which the first outside layer is attached to.
 
     Methods
     -------
@@ -165,13 +174,24 @@ class SimulationConfig:
         return self._config[SimulationFields.SIMULATION_PARAMETERS.value][SimulationFields.FIELD_INPUT_FILE.value]
 
     @property
-    def layer_thickness(self):
-        return self._config[SimulationFields.MATERIAL_DIMENSIONS.value][SimulationFields.LAYER_THICKNESS.value]
-
-    @property
     def length(self):
         return self._config[SimulationFields.MATERIAL_DIMENSIONS.value][SimulationFields.LENGTH.value]
 
     @property
     def width(self):
         return self._config[SimulationFields.MATERIAL_DIMENSIONS.value][SimulationFields.WIDTH.value]
+
+    @property
+    def layer_1_thickness(self):
+        return self._config[SimulationFields.LAYER_1.value][SimulationFields.THICKNESS.value]
+
+    @property
+    def layer_1_direction(self):
+        direction = self._config[SimulationFields.LAYER_1.value][SimulationFields.DIRECTION.value]
+        direction_map = {
+            'X': [1, 0, 0],
+            '-X': [-1, 0, 0],
+            'Y': [0, 1, 0],
+            '-Y': [0, -1, 0],
+        }
+        return direction_map.get(direction, [0, 0, 0])  # default to [0, 0, 0] if direction is not recognized

@@ -27,11 +27,11 @@ if simulation_config.field_input_file:
     result = input_file.process_input_tensors(simulation_config.field_input_file, plot=True)
 
     # Access thickness and length directly from the result dictionary
-    thickness_al = result[input_file.ExternalInput.THICKNESS.value]
+    thickness_al = result[input_file.ExternalInput.WIDTH.value]
     length = result[input_file.ExternalInput.LENGTH.value]
 else:
     # If it isn't, load the thickness and length from the configuration file
-    thickness_al = simulation_config.layer_thickness
+    thickness_al = simulation_config.width
     length = simulation_config.length
 
 # # Define old coordinates

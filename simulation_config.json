@@ -13,8 +13,11 @@
         "field_input_file": "CementOutput.json"
     },
     "material_dimensions": {
-        "layer_thickness": null,
         "length": null,
         "width": null
+    },
+    "layer-1": {
+        "thickness": null,
+        "direction": "X"
     }
 }

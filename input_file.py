@@ -38,7 +38,7 @@ class ExternalInput(Enum):
 
     Attributes:
     -----------
-    THICKNESS : str
+    WIDTH : str
         The key to store the calculated thickness.
     LENGTH : str
         The key to store the calculated length.
@@ -51,7 +51,7 @@ class ExternalInput(Enum):
     Z : str
         The key to store the Z coordinates.
     """
-    THICKNESS = "thickness"
+    WIDTH = "width"
     LENGTH = "length"
     DISPLACEMENT = "displacement"
     X = "X"
@@ -161,7 +161,7 @@ def process_input_tensors(filename, plot=False):
 
     # Add calculated values to the loaded_vars dictionary
     loaded_vars.update({
-        ExternalInput.THICKNESS.value: thickness_aluminium[0],
+        ExternalInput.WIDTH.value: thickness_aluminium[0],
         ExternalInput.LENGTH.value: length,
         ExternalInput.DISPLACEMENT.value: displacement,
         ExternalInput.X.value: np.array(x_coordinates),
