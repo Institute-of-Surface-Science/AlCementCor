@@ -85,26 +85,6 @@ def setup_numerical_stuff(simulation_config, mesh):
                                            ["Avg. Hydrostatic stress", "test", "test2"]]
     return V, u, du, Du, W, sig, sig_old, n_elas, W0, beta, p, sig_hyd, sig_0_local, mu_local, lmbda_local, C_linear_h_local, P0, sig_hyd_avg, sig_0_test, lmbda_test, DG, deg_stress
 
-
-def extract_material_properties(properties_al, properties_ceramic):
-    """Extracts required material properties from MaterialProperties objects."""
-    # Access properties for Al6082-T6
-    lmbda = properties_al.first_lame_parameter
-    C_Et = properties_al.tangent_modulus
-    C_linear_isotropic_hardening = properties_al.linear_isotropic_hardening
-    C_nlin_ludwik = properties_al.nonlinear_ludwik_parameter
-    C_exponent_ludwik = properties_al.exponent_ludwik
-    C_swift_eps0 = properties_al.swift_epsilon0
-    C_exponent_swift = properties_al.exponent_swift
-
-    # Access properties for Aluminium-Ceramic
-    lmbda_outer = properties_ceramic.first_lame_parameter
-    C_Et_outer = properties_ceramic.tangent_modulus
-    C_linear_isotropic_hardening_outer = properties_ceramic.linear_isotropic_hardening
-
-    return lmbda, C_Et, C_linear_isotropic_hardening, C_nlin_ludwik, C_exponent_ludwik, C_swift_eps0, C_exponent_swift, lmbda_outer, C_Et_outer, C_linear_isotropic_hardening_outer
-
-
 def plot_vm(i, sig_eq_p):
     plt.figure()
     # plt.plot(results[:, 0], results[:, 1], "-o")
@@ -283,11 +263,6 @@ def main():
     # Load configuration and material properties
     simulation_config, properties_substrate, properties_layer = load_simulation_config()
 
-    # Extract material properties
-    (lmbda, C_Et, C_linear_isotropic_hardening, C_nlin_ludwik, C_exponent_ludwik, C_swift_eps0,
-     C_exponent_swift, lmbda_outer, C_Et_outer,
-     C_linear_isotropic_hardening_outer) = extract_material_properties(properties_substrate, properties_layer)
-
     # Summary of configuration and material properties
     summarize_and_print_config(simulation_config, [properties_substrate, properties_layer])
 
@@ -297,8 +272,7 @@ def main():
     # Set up numerical parameters
     C_strain_rate = fe.Constant(0.000001)  # 0.01/s
     (V, u, du, Du, W, sig, sig_old, n_elas, W0, beta, p, sig_hyd, sig_0_local, mu_local, lmbda_local, C_linear_h_local,
-     P0, sig_hyd_avg, sig_0_test, lmbda_test, DG, deg_stress) = setup_numerical_stuff(
-        simulation_config, mesh)
+     P0, sig_hyd_avg, sig_0_test, lmbda_test, DG, deg_stress) = setup_numerical_stuff(simulation_config, mesh)
 
     # Set up boundary conditions
     bc, bc_iter, conditions = setup_boundary_conditions(V, simulation_config.use_two_material_layers, C_strain_rate,
@@ -315,10 +289,10 @@ def main():
     assign_local_values(properties_substrate.shear_modulus, properties_layer.shear_modulus, mu_local_DG, DG, simulation_config)
 
     lmbda_local_DG = fe.Function(DG)
-    assign_local_values(lmbda, lmbda_outer, lmbda_local_DG, DG, simulation_config)
+    assign_local_values(properties_substrate.first_lame_parameter, properties_layer.first_lame_parameter, lmbda_local_DG, DG, simulation_config)
 
     C_linear_h_local_DG = fe.Function(DG)
-    assign_local_values(C_linear_isotropic_hardening, C_linear_isotropic_hardening_outer, C_linear_h_local_DG, DG,
+    assign_local_values(properties_substrate.linear_isotropic_hardening, properties_layer.linear_isotropic_hardening, C_linear_h_local_DG, DG,
                         simulation_config)
 
     a_Newton = fe.inner(eps(v),
@@ -338,7 +312,7 @@ def main():
 
     sig_0_local = assign_layer_values(properties_substrate.yield_strength, properties_layer.yield_strength, W0, simulation_config)
     mu_local = assign_layer_values(properties_substrate.shear_modulus, properties_layer.shear_modulus, W0, simulation_config)
-    C_linear_h_local = assign_layer_values(C_linear_isotropic_hardening, C_linear_isotropic_hardening_outer, W0,
+    C_linear_h_local = assign_layer_values(properties_substrate.linear_isotropic_hardening, properties_layer.linear_isotropic_hardening, W0,
                                            simulation_config)
 
     # Initializing result and time step lists
