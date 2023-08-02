@@ -112,6 +112,16 @@ def extract_material_properties(properties_al, properties_ceramic):
 
     return C_E, C_nu, C_sig0, C_mu, lmbda, C_Et, C_linear_isotropic_hardening, C_nlin_ludwik, C_exponent_ludwik, C_swift_eps0, C_exponent_swift, C_E_outer, C_nu_outer, C_sig0_outer, C_mu_outer, lmbda_outer, C_Et_outer, C_linear_isotropic_hardening_outer
 
+def plot_vm(i, sig_eq_p):
+    plt.figure()
+    # plt.plot(results[:, 0], results[:, 1], "-o")
+    ax = fe.plot(sig_eq_p)
+    cbar = plt.colorbar(ax)
+    plt.xlabel("x")
+    plt.ylabel("y$")
+    # plt.show()
+    plt.savefig("vm" + str(i) + ".svg")
+    plt.close()
 
 # Load configuration and material properties
 simulation_config, properties_substrate, properties_layer = load_simulation_config()
@@ -382,6 +392,7 @@ mu_local = fe.interpolate(test, W0)
 test = set_layer(C_linear_isotropic_hardening, C_linear_isotropic_hardening_outer)
 C_linear_h_local = fe.interpolate(test, W0)
 
+
 results = []
 stress_max_t = []
 stress_max_t += [0]
@@ -468,15 +479,7 @@ while time < simulation_config.integration_time_limit:
     sig_eq_p = local_project(sig_eq, P0)
 
     if i % 10 == 0:
-        plt.figure()
-        # plt.plot(results[:, 0], results[:, 1], "-o")
-        ax = fe.plot(sig_eq_p)
-        cbar = plt.colorbar(ax)
-        plt.xlabel("x")
-        plt.ylabel("y$")
-        # plt.show()
-        plt.savefig("vm" + str(i) + ".svg")
-        plt.close()
+        plot_vm(i, sig_eq_p)
 
     # project the von-mises stress for plotting
     stress_max_t += [np.abs(np.amax(sig_eq_p.vector()[:]))]
@@ -484,10 +487,6 @@ while time < simulation_config.integration_time_limit:
 
     # displacement at the middle of the bar in y-direction
     disp_t += [u(l_x / 2, l_y)[1]]
-
-    # print("maximum stress ", np.amax(sig.vector()[:]))
-    # print("maximum stress(y-y) ", np.amax(s22.vector()[:]))
-    # print("plastic strain ", np.amax(p.vector()[:]))
 
     file_results.write(u, time)
     p_avg.assign(fe.project(p, P0))
