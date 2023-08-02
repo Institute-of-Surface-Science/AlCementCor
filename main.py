@@ -260,6 +260,30 @@ def check_convergence(nRes, nRes0, tol, niter, Nitermax):
     return niter == 0 or (nRes0 > 0 and nRes / nRes0 > tol and niter < Nitermax)
 
 
+def run_newton_raphson(A, Res, a_Newton, res, bc_iter, du, Du, sig_old, p, sig_0_local, C_linear_h_local, mu_local, lmbda_local_DG, mu_local_DG, sig, n_elas, beta, sig_hyd, W, W0, dxm, Nitermax, tol):
+    nRes0 = Res.norm("l2")
+    niter = 0
+    nRes = nRes0
+    while niter == 0 or (nRes0 > 0 and nRes / nRes0 > tol and niter < Nitermax):
+        fe.solve(A, du.vector(), Res, "mumps")
+        Du.assign(Du + du)
+        deps = eps(Du)
+
+        sig_, n_elas_, beta_, dp_, sig_hyd_ = proj_sig(deps, sig_old, p, sig_0_local, C_linear_h_local, mu_local, lmbda_local_DG, mu_local_DG)
+        local_project(sig_, W, dxm, sig)
+        local_project(n_elas_, W, dxm, n_elas)
+        local_project(beta_, W0, dxm, beta)
+        sig_hyd.assign(local_project(sig_hyd_, W0, dxm))
+
+        A, Res = fe.assemble_system(a_Newton, res, bc_iter)
+
+        nRes = Res.norm("l2")
+        print(f"Residual: {nRes}")
+        niter += 1
+
+    return nRes, dp_
+
+
 def main():
     # Load configuration and material properties
     simulation_config, properties_substrate, properties_layer = load_simulation_config()
@@ -336,29 +360,12 @@ def main():
             if isinstance(condition, ConstantStrainRateBoundaryCondition):
                 condition.update_time(time_step)
         A, Res = fe.assemble_system(a_Newton, res, bc)
-        nRes0 = Res.norm("l2")
         print(f"Step: {i + 1}, time: {time} s")
         print(f"displacement: {C_strain_rate.values()[0] * time} mm")
 
-        niter = 0
-        nRes = nRes0
-        while niter == 0 or (nRes0 > 0 and nRes / nRes0 > tol and niter < Nitermax):
-            fe.solve(A, du.vector(), Res, "mumps")
-            Du.assign(Du + du)
-            deps = eps(Du)
-
-            sig_, n_elas_, beta_, dp_, sig_hyd_ = proj_sig(deps, sig_old, p, sig_0_local, C_linear_h_local,
-                                                           mu_local, lmbda_local_DG, mu_local_DG)
-            local_project(sig_, W, dxm, sig)
-            local_project(n_elas_, W, dxm, n_elas)
-            local_project(beta_, W0, dxm, beta)
-            sig_hyd.assign(local_project(sig_hyd_, W0, dxm))
-
-            A, Res = fe.assemble_system(a_Newton, res, bc_iter)
-
-            nRes = Res.norm("l2")
-            print(f"Residual: {nRes}")
-            niter += 1
+        nRes, dp_ = run_newton_raphson(A, Res, a_Newton, res, bc_iter, du, Du, sig_old, p, sig_0_local, C_linear_h_local,
+                                  mu_local, lmbda_local_DG, mu_local_DG, sig, n_elas, beta, sig_hyd, W, W0, dxm,
+                                  Nitermax, tol)
 
         if nRes > 1 or np.isnan(nRes):
             raise Exception("ERROR: Calculation diverged!")
