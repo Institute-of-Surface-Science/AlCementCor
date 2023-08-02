@@ -57,6 +57,8 @@ class ExternalInput(Enum):
     X = "X"
     Y = "Y"
     Z = "Z"
+    OUTSIDE_P = "outside_points"
+    INSIDE_P = "inside_points"
 
 
 def process_input_tensors(filename, plot=False):
@@ -99,7 +101,18 @@ def process_input_tensors(filename, plot=False):
     kmeans = KMeans(n_clusters=2, random_state=0).fit(coordinates_0[:, :2])
     labels = kmeans.labels_
 
-    # Calculate the thickness of the aluminium layer
+    # get the cluster centers
+    cluster_centers = kmeans.cluster_centers_
+
+    # determine which cluster corresponds to "outside" (larger y values) and which to "inside"
+    outside_cluster = np.argmax(cluster_centers[:, 1])
+    inside_cluster = 1 - outside_cluster
+
+    # split points based on labels
+    outside_points = coordinates_0[labels == outside_cluster]
+    inside_points = coordinates_0[labels == inside_cluster]
+
+    # Calculate the width of the volume
     y_coordinates_centroids = kmeans.cluster_centers_[:, 1]
     width = np.abs(np.diff(y_coordinates_centroids))
 
@@ -165,6 +178,8 @@ def process_input_tensors(filename, plot=False):
         ExternalInput.X.value: np.array(x_coordinates),
         ExternalInput.Y.value: np.array(y_coordinates),
         ExternalInput.Z.value: np.array(z_coordinates),
+        ExternalInput.OUTSIDE_P: outside_points,
+        ExternalInput.INSIDE_P: inside_points
     })
 
     return loaded_vars
