@@ -16,29 +16,51 @@ fe.parameters["form_compiler"]["representation"] = 'quadrature'
 warnings.simplefilter("once", QuadratureRepresentationDeprecationWarning)
 
 
-def summarize_and_print_config(materials: List[mat_prop.MaterialProperties]) -> None:
-    # Define the list of property keys that we're interested in.
-    property_keys = ["youngs_modulus", "poisson_ratio", "yield_strength",
-                     "shear_modulus", "first_lame_parameter", "tangent_modulus",
-                     "linear_isotropic_hardening", "nonlinear_ludwik_parameter",
+def summarize_and_print_config(simulation_config: config.SimulationConfig, materials: List[mat_prop.MaterialProperties]) -> None:
+    # Print simulation configuration
+    print("\nSimulation Configuration:")
+    print("---------------------------------------")
+    config_dict = {
+        "Two layers": simulation_config.use_two_material_layers,
+        "End time": simulation_config.integration_time_limit,
+        "No. of timesteps": simulation_config.total_timesteps,
+        "Hardening model": simulation_config.hardening_model,
+    }
+    # Check if the field_input_file is set in the configuration file
+    if simulation_config.field_input_file:
+        # If it is, load the thickness and length from the file
+        result = input_file.process_input_tensors(simulation_config.field_input_file, plot=True)
+        # Access thickness and length directly from the result dictionary
+        config_dict["Width"] = result[input_file.ExternalInput.WIDTH.value]
+        config_dict["Length"] = result[input_file.ExternalInput.LENGTH.value]
+    else:
+        # If it isn't, load the thickness and length from the configuration file
+        config_dict["Width"] = simulation_config.width
+        config_dict["Length"] = simulation_config.length
+
+    for property, value in config_dict.items():
+        print(f"{property}: {value}")
+    print("---------------------------------------")
+
+    # Print material properties
+    print("\nMaterial Properties:")
+    print("---------------------------------------")
+    property_keys = ["youngs_modulus", "poissons_ratio", "yield_strength",
+                     "tangent_modulus", "linear_isotropic_hardening", "shear_modulus",
+                     "first_lame_parameter", "nonlinear_ludwik_parameter",
                      "exponent_ludwik", "swift_epsilon0", "exponent_swift"]
-
-    # Define a list of column headers for our table
     headers = ["Property"] + [material.material for material in materials]
-
-    # Define a list to store our rows of data
     rows = []
-
-    # For each property, retrieve the value from each material and add them as a row in our table.
     for prop in property_keys:
         row = [prop]  # Start with the property name
         for material in materials:
             value = getattr(material, prop, None)
-            row.append(value)  # Append each property value to the row
+            row.append(
+                value if value is not None else "N/A")  # Append each property value to the row, "N/A" if not exist
         rows.append(row)
 
-    # Now we have all the data, let's print it as a table
     print(tabulate(rows, headers=headers, tablefmt="pipe", floatfmt=".2f", missingval="N/A"))
+    print("---------------------------------------")
 
 
 # Initialize a SimulationConfig object using the configuration file
@@ -92,7 +114,7 @@ lmbda_outer = properties_ceramic.first_lame_parameter
 C_Et_outer = properties_ceramic.tangent_modulus
 C_linear_isotropic_hardening_outer = properties_ceramic.linear_isotropic_hardening
 
-summarize_and_print_config([properties_al, properties_ceramic])
+summarize_and_print_config(simulation_config, [properties_al, properties_ceramic])
 
 # Length refers to the y-length
 # Width refers to the x-length
