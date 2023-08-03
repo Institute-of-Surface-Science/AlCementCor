@@ -262,30 +262,54 @@ def check_convergence(nRes, nRes0, tol, niter, Nitermax):
     return niter == 0 or (nRes0 > 0 and nRes / nRes0 > tol and niter < Nitermax)
 
 
-def run_newton_raphson(A, Res, a_Newton, res, bc_iter, du, Du, sig_old, p, sig_0_local, C_linear_h_local, mu_local,
-                       lmbda_local_DG, mu_local_DG, sig, n_elas, beta, sig_hyd, W, W0, dxm, Nitermax, tol):
-    nRes0 = Res.norm("l2")
-    niter = 0
-    nRes = nRes0
-    while niter == 0 or (nRes0 > 0 and nRes / nRes0 > tol and niter < Nitermax):
-        fe.solve(A, du.vector(), Res, "mumps")
-        Du.assign(Du + du)
-        deps = eps(Du)
+def run_newton_raphson(system_matrix, residual, newton_form, residual_form, boundary_conditions,
+                       solution_change, total_change, old_stress, hydrostatic_pressure, local_initial_stress,
+                       local_linear_hardening, local_shear_modulus, local_lame_first, local_shear_modulus_dg,
+                       stress, elastic_strain, back_stress, hydrostatic_stress, function_space, null_space,
+                       dx_measure, max_iterations, tolerance):
+    """
+    Solve a nonlinear problem using the Newton-Raphson method.
+    """
 
-        sig_, n_elas_, beta_, dp_, sig_hyd_ = proj_sig(deps, sig_old, p, sig_0_local, C_linear_h_local, mu_local,
-                                                       lmbda_local_DG, mu_local_DG)
-        local_project(sig_, W, dxm, sig)
-        local_project(n_elas_, W, dxm, n_elas)
-        local_project(beta_, W0, dxm, beta)
-        sig_hyd.assign(local_project(sig_hyd_, W0, dxm))
+    # Initial residual norm
+    initial_residual_norm = residual.norm("l2")
 
-        A, Res = fe.assemble_system(a_Newton, res, bc_iter)
+    # Initialize iteration counter and current residual norm
+    iteration_counter = 0
+    current_residual_norm = initial_residual_norm
 
-        nRes = Res.norm("l2")
-        print(f"Residual: {nRes}")
-        niter += 1
+    # Start iterations
+    while iteration_counter == 0 or (
+            initial_residual_norm > 0 and current_residual_norm / initial_residual_norm > tolerance and iteration_counter < max_iterations):
+        # Solve the linear system
+        fe.solve(system_matrix, solution_change.vector(), residual, "mumps")
 
-    return nRes, dp_
+        # Update solution
+        total_change.assign(total_change + solution_change)
+        strain_change = eps(total_change)
+
+        # Project the new stress
+        stress_update, elastic_strain_update, back_stress_update, pressure_change, hydrostatic_stress_update = proj_sig(
+            strain_change, old_stress, hydrostatic_pressure, local_initial_stress, local_linear_hardening,
+            local_shear_modulus, local_lame_first, local_shear_modulus_dg)
+
+        # Update field values
+        local_project(stress_update, function_space, dx_measure, stress)
+        local_project(elastic_strain_update, function_space, dx_measure, elastic_strain)
+        local_project(back_stress_update, null_space, dx_measure, back_stress)
+        hydrostatic_stress.assign(local_project(hydrostatic_stress_update, null_space, dx_measure))
+
+        # Assemble system
+        system_matrix, residual = fe.assemble_system(newton_form, residual_form, boundary_conditions)
+
+        # Update residual norm
+        current_residual_norm = residual.norm("l2")
+        print(f"Residual: {current_residual_norm}")
+
+        # Increment iteration counter
+        iteration_counter += 1
+
+    return current_residual_norm, pressure_change
 
 
 def update_and_store_results(i, Du, dp_, sig, sig_old, sig_hyd, sig_hyd_avg, p, W0, dxm, P0, u, l_x, l_y, time,
