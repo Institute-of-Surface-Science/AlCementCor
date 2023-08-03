@@ -49,8 +49,8 @@ def load_simulation_config():
         simulation_config.width = result[ExternalInput.WIDTH.value]
         simulation_config.length = result[ExternalInput.LENGTH.value]
 
-    properties_al = MaterialProperties('material_properties.json', 'Al6082-T6')
-    properties_ceramic = MaterialProperties('material_properties.json', 'Aluminium-Ceramic')
+    properties_al = MaterialProperties('material_properties.json', simulation_config.material)
+    properties_ceramic = MaterialProperties('material_properties.json', simulation_config.layer_material)
     return simulation_config, properties_al, properties_ceramic
 
 

@@ -9,7 +9,6 @@
         "use_two_material_layers": true,
         "integration_time_limit": 175000,
         "total_timesteps": 10000,
-        "hardening_model": "linear",
         "field_input_file": "CementOutput.json",
         "mesh_resolution": {
             "x": 200,
@@ -26,6 +25,11 @@
     },
     "layer-1": {
         "thickness": 0.2,
-        "direction": "X"
+        "direction": "X",
+        "material": "Aluminium-Ceramic"
+    },
+    "material_model": {
+        "material": "Al6082-T6",
+        "hardening_model": "linear"
     }
 }

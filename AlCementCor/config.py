@@ -64,7 +64,6 @@ class SimulationFields(Enum):
     USE_TWO_MATERIAL_LAYERS = "use_two_material_layers"
     INTEGRATION_TIME_LIMIT = "integration_time_limit"
     TOTAL_TIMESTEPS = "total_timesteps"
-    HARDENING_MODEL = "hardening_model"
     FIELD_INPUT_FILE = "field_input_file"
 
     MATERIAL_DIMENSIONS = "material_dimensions"
@@ -74,6 +73,7 @@ class SimulationFields(Enum):
     LAYER_1 = "layer-1"
     THICKNESS = "thickness"
     DIRECTION = "direction"
+    LAYER_MATERIAL = "material"
 
     MESH_RESOLUTION = "mesh_resolution"
     RESOLUTION_X = "x"
@@ -86,6 +86,10 @@ class SimulationFields(Enum):
     FINITE_ELEMENT_DEGREES = "FiniteElementDegrees"
     FEM_DEG_U = "u"
     FEM_DEG_STRESS = "stress"
+
+    MATERIAL_MODEL = "material_model"
+    MATERIAL = "material"
+    HARDENING_MODEL = "hardening_model"
 
 
 class SimulationConfig:
@@ -215,7 +219,7 @@ class SimulationConfig:
 
     @property
     def hardening_model(self) -> Any:
-        return self.get(SimulationFields.SIMULATION_PARAMETERS.value, SimulationFields.HARDENING_MODEL.value, None)
+        return self.get(SimulationFields.MATERIAL_MODEL.value, SimulationFields.HARDENING_MODEL.value, None)
 
     @property
     def field_input_file(self) -> Any:
@@ -275,3 +279,11 @@ class SimulationConfig:
     def finite_element_degree_stress(self) -> Any:
         return self.get(SimulationFields.SIMULATION_PARAMETERS.value, SimulationFields.FINITE_ELEMENT_DEGREES.value,
                         SimulationFields.FEM_DEG_STRESS.value, None)
+
+    @property
+    def material(self) -> Any:
+        return self.get(SimulationFields.MATERIAL_MODEL.value, SimulationFields.MATERIAL.value, None)
+
+    @property
+    def layer_material(self) -> Any:
+        return self.get(SimulationFields.LAYER_1.value, SimulationFields.LAYER_MATERIAL.value, None)
