@@ -6,7 +6,8 @@ import warnings
 import argparse
 from ffc.quadrature.deprecation import QuadratureRepresentationDeprecationWarning
 
-from AlCementCor.bnd import ConstantStrainRateBoundaryCondition, NoDisplacementBoundaryCondition
+from AlCementCor.bnd import ConstantStrainRateBoundaryCondition, NoDisplacementBoundaryCondition, \
+    FunctionDisplacementBoundaryCondition, DisplacementExpression
 from AlCementCor.config import *
 from AlCementCor.info import *
 from AlCementCor.input_file import *
@@ -26,10 +27,16 @@ def setup_boundary_conditions(V, two_layers, C_strain_rate, l_y):
         return on_boundary and fe.near(x[1], l_y)
 
     # Define the boundary conditions
-    bottom_condition = ConstantStrainRateBoundaryCondition(V, is_bottom_boundary,
-                                                           -C_strain_rate) if two_layers else NoDisplacementBoundaryCondition(
-        V, is_bottom_boundary)
-    top_condition = ConstantStrainRateBoundaryCondition(V, is_top_boundary, C_strain_rate)
+    bottom_condition = NoDisplacementBoundaryCondition(V, is_bottom_boundary)
+    # if two_layers:
+    #     bottom_condition = ConstantStrainRateBoundaryCondition(V, is_bottom_boundary, -C_strain_rate)
+    # else:
+    #     bottom_condition = NoDisplacementBoundaryCondition(V, is_bottom_boundary)
+
+    #top_condition = ConstantStrainRateBoundaryCondition(V, is_top_boundary, C_strain_rate)
+    bnd_length = 5.0
+    displacement_func = DisplacementExpression(C_strain_rate, bnd_length)
+    top_condition = FunctionDisplacementBoundaryCondition(V, is_top_boundary, displacement_func)
 
     # Create the conditions list
     conditions = [bottom_condition, top_condition]
@@ -436,8 +443,7 @@ def main() -> None:
         time += time_step
         iteration += 1
         for condition in conditions:
-            if isinstance(condition, ConstantStrainRateBoundaryCondition):
-                condition.update_time(time_step)
+            condition.update_time(time_step)
         A, Res = fe.assemble_system(newton_lhs, newton_rhs, bc)
         print(f"Step: {iteration + 1}, time: {time} s")
         print(f"displacement: {strain_rate.values()[0] * time} mm")
