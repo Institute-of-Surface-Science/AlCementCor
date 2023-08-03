@@ -85,9 +85,9 @@ class DisplacementExpression(fe.UserExpression):
         self.time = 1e-16
 
     def eval(self, values, x):
-        values[0] = 0.0
+        values[0] = self.time * self.strain_rate * (self.bnd_length - x[0]) / self.bnd_length
         # linearly increasing displacement in the x-direction with respect to time and x-coordinate
-        values[1] = self.time * self.strain_rate * (self.bnd_length - x[0]) / self.bnd_length
+        values[1] = 0.0 #self.time * self.strain_rate * (self.bnd_length - x[0]) / self.bnd_length
 
     def update_time(self, time_step):
         self.time = time_step
