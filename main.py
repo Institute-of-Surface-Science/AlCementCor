@@ -411,7 +411,7 @@ def main() -> None:
     results_file.parameters["functions_share_mesh"] = True
     P0 = fe.FunctionSpace(mesh, "DG", 0)
 
-    max_iters, tolerance = 100, 1e-8  # parameters of the Newton-Raphson procedure
+    max_iters, tolerance = 10, 1e-8  # parameters of the Newton-Raphson procedure
     time_step = config.integration_time_limit / (config.total_timesteps)
 
     # Assign layer values
@@ -428,6 +428,13 @@ def main() -> None:
 
     time = 0
     iteration = 0
+
+    desired_norm_res = 1e-2 * tolerance
+    max_time_step = 10 * time_step
+    min_time_step = 1e-4 * time_step
+    kp = 0.01
+    ki = 0.005
+    integral_error = 0.0
 
     while time < config.integration_time_limit:
         time += time_step
@@ -454,6 +461,12 @@ def main() -> None:
 
         displacement_over_time += [(np.abs(u(l_x / 2, l_y)[1]) / l_y, time)]
 
+        # PI Controller for time step adaptation
+        error = (newton_res_norm - desired_norm_res) / desired_norm_res
+        integral_error += error
+        delta_time_step = -kp * error * time_step - ki * integral_error * time_step
+        time_step += delta_time_step
+        time_step = max(min(time_step, max_time_step), min_time_step)  # Clamp the time step within a range
 
 if __name__ == "__main__":
     main()
