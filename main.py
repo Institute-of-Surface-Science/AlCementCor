@@ -11,6 +11,7 @@ from AlCementCor.config import *
 from AlCementCor.info import *
 from AlCementCor.input_file import *
 from AlCementCor.material_properties import *
+from AlCementCor.time_controller import PITimeController
 
 fe.parameters["form_compiler"]["representation"] = 'quadrature'
 warnings.simplefilter("once", QuadratureRepresentationDeprecationWarning)
@@ -429,12 +430,7 @@ def main() -> None:
     time = 0
     iteration = 0
 
-    desired_norm_res = 1e-2 * tolerance
-    max_time_step = 10 * time_step
-    min_time_step = 1e-4 * time_step
-    kp = 0.01
-    ki = 0.005
-    integral_error = 0.0
+    time_controller = PITimeController(time_step, 1e-2 * tolerance)
 
     while time < config.integration_time_limit:
         time += time_step
@@ -461,13 +457,7 @@ def main() -> None:
 
         displacement_over_time += [(np.abs(u(l_x / 2, l_y)[1]) / l_y, time)]
 
-        # PI Controller for time step adaptation
-        error = (newton_res_norm - desired_norm_res) / desired_norm_res
-        integral_error += error
-        delta_time_step = -kp * error * time_step - ki * integral_error * time_step
-        time_step += delta_time_step
-        # Clamp the time step within a range
-        time_step = max(min(time_step, max_time_step), min_time_step)
+        time_step = time_controller.update(newton_res_norm)
 
 if __name__ == "__main__":
     main()
