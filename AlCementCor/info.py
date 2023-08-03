@@ -1,15 +1,19 @@
 import inspect
 import os
+import argparse
 from tabulate import tabulate
 from typing import List
 from AlCementCor.config import SimulationConfig
 from AlCementCor.material_properties import MaterialProperties
 
 
-def summarize_and_print_config(simulation_config: SimulationConfig,
-                               materials: List[MaterialProperties]) -> None:
-    terminal_width = os.get_terminal_size().columns
+class PreserveWhiteSpaceArgParseFormatter(argparse.HelpFormatter):
+    def _fill_text(self, text, width, indent):
+        # Preserves white spaces in the input text
+        lines = text.splitlines()
+        return "\n".join(lines)
 
+def logo():
     logo = """
         ___    ________                          __  ______          
        /   |  / / ____/__  ____ ___  ___  ____  / /_/ ____/___  _____
@@ -20,8 +24,14 @@ def summarize_and_print_config(simulation_config: SimulationConfig,
     Helmholtz-Center hereon, Institute of Surface Science 
     Copyright 2023
         """
+    return logo
 
-    print(logo)
+
+def summarize_and_print_config(simulation_config: SimulationConfig,
+                               materials: List[MaterialProperties]) -> None:
+    terminal_width = os.get_terminal_size().columns
+
+    print(logo())
 
     # Print simulation configuration
     print("\nSimulation Configuration:")

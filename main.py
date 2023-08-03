@@ -3,6 +3,7 @@ import fenics as fe
 import matplotlib.pyplot as plt
 import numpy as np
 import warnings
+import argparse
 from ffc.quadrature.deprecation import QuadratureRepresentationDeprecationWarning
 
 from AlCementCor.bnd import ConstantStrainRateBoundaryCondition, NoDisplacementBoundaryCondition
@@ -41,9 +42,9 @@ def setup_boundary_conditions(V, two_layers, C_strain_rate, l_y):
     return bc, bc_iter, conditions
 
 
-def load_simulation_config():
+def load_simulation_config(file_name):
     """Loads and initializes a SimulationConfig object from a JSON configuration file."""
-    simulation_config = SimulationConfig('simulation_config.json')
+    simulation_config = SimulationConfig(file_name)
     if simulation_config.field_input_file:
         result = process_input_tensors(simulation_config.field_input_file, plot=True)
         simulation_config.width = result[ExternalInput.WIDTH.value]
@@ -323,12 +324,28 @@ def update_and_store_results(i, Du, dp_, sig, sig_old, sig_hyd, sig_hyd_avg, p, 
     p_avg.assign(fe.project(p, P0))
     file_results.write(p_avg, time)
 
+def cli_interface():
+    parser = argparse.ArgumentParser(description=logo(), formatter_class=PreserveWhiteSpaceArgParseFormatter)
+
+    # Add an argument for configuration file, default to 'simulation_config.json'
+    parser.add_argument('-c', '--config', type=str, default='simulation_config.json',
+                        help='Path to the simulation configuration JSON file.')
+
+    # Add an argument for version information
+    parser.add_argument('-v', '--version', action='version', version='%(prog)s 1.0',
+                        help='Show program\'s version number and exit.')
+
+    args = parser.parse_args()
+    return args
+
 
 def main() -> None:
     """Main function to run the simulation."""
 
+    args = cli_interface()
+
     # Load configuration and material properties
-    config, substrate_props, layer_props = load_simulation_config()
+    config, substrate_props, layer_props = load_simulation_config(args.config)
     summarize_and_print_config(config, [substrate_props, layer_props])
 
     # Geometry setup
