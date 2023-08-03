@@ -34,7 +34,7 @@ def summarize_and_print_config(simulation_config: SimulationConfig,
     config_dict = {prop: getattr(simulation_config, prop) for prop in sim_config_props}
 
     for property, value in config_dict.items():
-        print(f"{property}: {value}")
+        print(f"  {property}: {value}")
 
     # Print a line that spans the entire width
     print("-" * terminal_width)
