@@ -466,7 +466,8 @@ def main() -> None:
         integral_error += error
         delta_time_step = -kp * error * time_step - ki * integral_error * time_step
         time_step += delta_time_step
-        time_step = max(min(time_step, max_time_step), min_time_step)  # Clamp the time step within a range
+        # Clamp the time step within a range
+        time_step = max(min(time_step, max_time_step), min_time_step)
 
 if __name__ == "__main__":
     main()
