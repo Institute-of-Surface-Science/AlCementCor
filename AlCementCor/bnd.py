@@ -32,6 +32,7 @@ class NoDisplacementBoundaryCondition(BoundaryCondition):
     def update_time(self, time_step):
         pass
 
+
 class StrainRateExpression(fe.UserExpression):
     def __init__(self, strain_rate, **kwargs):
         super().__init__(**kwargs)
