@@ -96,19 +96,7 @@ def setup_numerical_stuff(simulation_config, mesh):
                                            ["Avg. Hydrostatic stress", "test", "test2"]]
     return V, u, du, Du, W, sig, sig_old, n_elas, W0, beta, p, sig_hyd, sig_0_local, mu_local, lmbda_local, C_linear_h_local, P0, sig_hyd_avg, sig_0_test, lmbda_test, DG, deg_stress
 
-
-# def plot_vm(i, sig_eq_p):
-#     plt.figure()
-#     # plt.plot(results[:, 0], results[:, 1], "-o")
-#     ax = fe.plot(sig_eq_p)
-#     cbar = plt.colorbar(ax)
-#     plt.xlabel("x")
-#     plt.ylabel("y$")
-#     # plt.show()
-#     plt.savefig("vm" + str(i) + ".svg")
-#     plt.close()
-
-def plot(iteration, u, sig_eq_p, title="Von-Mises Stress", cbar_label="Von-Mises Stress", cmap="viridis", quiver_steps=5):
+def plot(iteration, u, sig_eq_p, title="Von-Mises Stress and Deformation", cbar_label="Von-Mises Stress", cmap="viridis", quiver_steps=5):
     """
     Function to plot and save the Von Mises stress distribution
 
