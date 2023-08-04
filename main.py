@@ -6,6 +6,7 @@ import numpy as np
 import warnings
 import argparse
 from ffc.quadrature.deprecation import QuadratureRepresentationDeprecationWarning
+from matplotlib.lines import Line2D
 
 from AlCementCor.bnd import *
 from AlCementCor.config import *
@@ -107,7 +108,7 @@ def setup_numerical_stuff(simulation_config, mesh):
 #     plt.savefig("vm" + str(i) + ".svg")
 #     plt.close()
 
-def plot_vm(i, sig_eq_p, title="Von-Mises Stress", cbar_label="Von-Mises Stress", cmap="viridis"):
+def plot(iteration, u, sig_eq_p, title="Von-Mises Stress", cbar_label="Von-Mises Stress", cmap="viridis", quiver_steps=5):
     """
     Function to plot and save the Von Mises stress distribution
 
@@ -129,19 +130,14 @@ def plot_vm(i, sig_eq_p, title="Von-Mises Stress", cbar_label="Von-Mises Stress"
 
     fig = plt.figure(figsize=(10, 8))
 
-    # Create a mesh of x, y values
     mesh = sig_eq_p.function_space().mesh()
     x = mesh.coordinates()[:, 0]
     y = mesh.coordinates()[:, 1]
     triangles = mesh.cells()
 
-    # Get scalar values at the mesh vertices
     scalars = sig_eq_p.compute_vertex_values(mesh)
-
-    # Create the triangulation
     triangulation = tri.Triangulation(x, y, triangles)
 
-    # Plot filled contours using the triangulation and scalar values
     c = plt.tripcolor(triangulation, scalars, shading='flat', cmap=cmap)
 
     plt.title(title, fontsize=20)
@@ -149,13 +145,49 @@ def plot_vm(i, sig_eq_p, title="Von-Mises Stress", cbar_label="Von-Mises Stress"
     plt.ylabel('y', fontsize=16)
     plt.tick_params(axis='both', which='major', labelsize=12)
 
+    # create quiver plot
+    X = np.linspace(np.min(x), np.max(x), quiver_steps)
+    Y = np.linspace(np.min(y), np.max(y), quiver_steps)
+    U = np.zeros((quiver_steps, quiver_steps))
+    V = np.zeros((quiver_steps, quiver_steps))
+
+    for i in range(quiver_steps):
+        for j in range(quiver_steps):
+            U[j, i], V[j, i] = u(X[i], Y[j])
+
+    # Reduce the arrow head size
+    #Q = plt.quiver(X, Y, U, V, color='r', headwidth=4, headlength=4, headaxislength=4, scale_units='width', scale=10)
+    Q = plt.quiver(X, Y, U, V, color='r', pivot='mid')
+
+    # Annotate the quivers
+    # for i in range(quiver_steps):
+    #     for j in range(quiver_steps):
+    #         if (i + j) % 2 == 0:  # Skip some quivers for clarity
+    #             label = f'({U[j, i]:.2f}, {V[j, i]:.2f})'
+    #             plt.annotate(label, (X[i], Y[j]), textcoords="offset points", xytext=(-10, -10), ha='center',
+    #                          fontsize=8)
+
+    # Add a single quiver for the legend
+    # qk = plt.quiverkey(Q, 0.9, 0.1, 1, r'$1 \, m$', labelpos='E', coordinates='figure')
+
+
+    # Extend the x and y limits
+    x_range = np.max(x) - np.min(x)
+    y_range = np.max(y) - np.min(y)
+    plt.xlim(np.min(x) - 0.1 * x_range, np.max(x) + 0.1 * x_range)
+    plt.ylim(np.min(y) - 0.1 * y_range, np.max(y) + 0.1 * y_range)
+
+    # Create custom legend
+    custom_lines = [Line2D([0], [0], color='r', lw=2)]
+    plt.legend(custom_lines, ['deformation'])
+
     cbar = plt.colorbar(c)
     cbar.set_label(cbar_label, size=16)
     cbar.ax.tick_params(labelsize=12)
 
     plt.tight_layout()
 
-    plt.savefig("vm" + str(i) + ".png", dpi=300)
+    plt.savefig("vm" + str(iteration) + ".png", dpi=300)
     plt.close()
 
 
@@ -393,7 +425,7 @@ def update_and_store_results(i, Du, dp_, sig, sig_old, sig_hyd, sig_hyd_avg, p, 
     sig_eq_p = local_project(sig_eq, P0, dxm)
 
     if i % 10 == 0:
-        plot_vm(i, sig_eq_p)
+        plot(i, u, sig_eq_p)
 
     # calculate and project the von-mises stress for later use
     stress_max_t.extend([np.abs(np.amax(sig_eq_p.vector()[:]))])
