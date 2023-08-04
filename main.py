@@ -32,7 +32,7 @@ def setup_boundary_conditions(V, two_layers, C_strain_rate, l_y):
     # else:
     #     bottom_condition = NoDisplacementBoundaryCondition(V, is_bottom_boundary)
 
-    #top_condition = ConstantStrainRateBoundaryCondition(V, is_top_boundary, C_strain_rate)
+    # top_condition = ConstantStrainRateBoundaryCondition(V, is_top_boundary, C_strain_rate)
     bnd_length = 5.0
     displacement_func = DisplacementExpressionY(C_strain_rate, bnd_length)
     top_condition = FunctionDisplacementBoundaryCondition(V, is_top_boundary, displacement_func)
@@ -95,15 +95,53 @@ def setup_numerical_stuff(simulation_config, mesh):
     return V, u, du, Du, W, sig, sig_old, n_elas, W0, beta, p, sig_hyd, sig_0_local, mu_local, lmbda_local, C_linear_h_local, P0, sig_hyd_avg, sig_0_test, lmbda_test, DG, deg_stress
 
 
-def plot_vm(i, sig_eq_p):
-    plt.figure()
-    # plt.plot(results[:, 0], results[:, 1], "-o")
-    ax = fe.plot(sig_eq_p)
-    cbar = plt.colorbar(ax)
-    plt.xlabel("x")
-    plt.ylabel("y$")
-    # plt.show()
-    plt.savefig("vm" + str(i) + ".svg")
+# def plot_vm(i, sig_eq_p):
+#     plt.figure()
+#     # plt.plot(results[:, 0], results[:, 1], "-o")
+#     ax = fe.plot(sig_eq_p)
+#     cbar = plt.colorbar(ax)
+#     plt.xlabel("x")
+#     plt.ylabel("y$")
+#     # plt.show()
+#     plt.savefig("vm" + str(i) + ".svg")
+#     plt.close()
+
+def plot_vm(i, sig_eq_p, title="Von-Mises Stress", cbar_label="Von-Mises Stress", cmap="viridis"):
+    """
+    Function to plot and save the Von Mises stress distribution
+
+    Parameters:
+    i : integer
+        Iteration index for saving the file
+    sig_eq_p : fenics.Function
+        The function you want to plot
+    title : str, optional
+        Title of the plot
+    cbar_label : str, optional
+        Label for the colorbar
+    cmap : str, optional
+        Colormap used for the plot
+
+    Returns:
+    None
+    """
+
+    plt.figure(figsize=(10, 8))
+
+    c = fe.plot(sig_eq_p, cmap=cmap)
+
+    plt.title(title, fontsize=20)
+    plt.xlabel('x', fontsize=16)
+    plt.ylabel('y', fontsize=16)
+    plt.tick_params(axis='both', which='major', labelsize=12)
+
+    cbar = plt.colorbar(c)
+    cbar.set_label(cbar_label, size=16)
+    cbar.ax.tick_params(labelsize=12)
+
+    plt.tight_layout()
+
+    plt.savefig("vm" + str(i) + ".svg", dpi=300)
     plt.close()
 
 
@@ -355,6 +393,7 @@ def update_and_store_results(i, Du, dp_, sig, sig_old, sig_hyd, sig_hyd_avg, p, 
     p_avg.assign(fe.project(p, P0))
     file_results.write(p_avg, time)
 
+
 def cli_interface():
     parser = argparse.ArgumentParser(description=logo(), formatter_class=PreserveWhiteSpaceArgParseFormatter)
 
@@ -404,10 +443,12 @@ def main() -> None:
     assign_local_values(substrate_props.shear_modulus, layer_props.shear_modulus, mu_local_DG, DG, config)
 
     lmbda_local_DG = fe.Function(DG)
-    assign_local_values(substrate_props.first_lame_parameter, layer_props.first_lame_parameter, lmbda_local_DG, DG, config)
+    assign_local_values(substrate_props.first_lame_parameter, layer_props.first_lame_parameter, lmbda_local_DG, DG,
+                        config)
 
     local_linear_hardening_DG = fe.Function(DG)
-    assign_local_values(substrate_props.linear_isotropic_hardening, layer_props.linear_isotropic_hardening, local_linear_hardening_DG, DG, config)
+    assign_local_values(substrate_props.linear_isotropic_hardening, layer_props.linear_isotropic_hardening,
+                        local_linear_hardening_DG, DG, config)
 
     newton_lhs = fe.inner(eps(v), sigma_tang(eps(u_), n_elas, mu_local_DG, local_linear_hardening_DG, beta,
                                              lmbda_local_DG)) * dxm
@@ -463,6 +504,7 @@ def main() -> None:
         displacement_over_time += [(np.abs(u(l_x / 2, l_y)[1]) / l_y, time)]
 
         time_step = time_controller.update(newton_res_norm)
+
 
 if __name__ == "__main__":
     main()
