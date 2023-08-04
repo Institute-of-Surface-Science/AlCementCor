@@ -1,6 +1,7 @@
 import ufl
 import fenics as fe
 import matplotlib.pyplot as plt
+import matplotlib.tri as tri
 import numpy as np
 import warnings
 import argparse
@@ -126,9 +127,22 @@ def plot_vm(i, sig_eq_p, title="Von-Mises Stress", cbar_label="Von-Mises Stress"
     None
     """
 
-    plt.figure(figsize=(10, 8))
+    fig = plt.figure(figsize=(10, 8))
 
-    c = fe.plot(sig_eq_p, cmap=cmap)
+    # Create a mesh of x, y values
+    mesh = sig_eq_p.function_space().mesh()
+    x = mesh.coordinates()[:, 0]
+    y = mesh.coordinates()[:, 1]
+    triangles = mesh.cells()
+
+    # Get scalar values at the mesh vertices
+    scalars = sig_eq_p.compute_vertex_values(mesh)
+
+    # Create the triangulation
+    triangulation = tri.Triangulation(x, y, triangles)
+
+    # Plot filled contours using the triangulation and scalar values
+    c = plt.tripcolor(triangulation, scalars, shading='flat', cmap=cmap)
 
     plt.title(title, fontsize=20)
     plt.xlabel('x', fontsize=16)
@@ -141,7 +155,7 @@ def plot_vm(i, sig_eq_p, title="Von-Mises Stress", cbar_label="Von-Mises Stress"
 
     plt.tight_layout()
 
-    plt.savefig("vm" + str(i) + ".svg", dpi=300)
+    plt.savefig("vm" + str(i) + ".png", dpi=300)
     plt.close()
 
 
