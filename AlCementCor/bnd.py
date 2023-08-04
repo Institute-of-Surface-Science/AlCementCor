@@ -77,7 +77,7 @@ class FunctionDisplacementBoundaryCondition(BoundaryCondition):
         self.displacement_function.update_time(time_step)
 
 
-class DisplacementExpression(fe.UserExpression):
+class DisplacementExpressionX(fe.UserExpression):
     def __init__(self, strain_rate, bnd_length, **kwargs):
         super().__init__(**kwargs)
         self.strain_rate = strain_rate
@@ -85,9 +85,27 @@ class DisplacementExpression(fe.UserExpression):
         self.time = 1e-16
 
     def eval(self, values, x):
-        values[0] = self.time * self.strain_rate * (self.bnd_length - x[0]) / self.bnd_length
         # linearly increasing displacement in the x-direction with respect to time and x-coordinate
-        values[1] = 0.0 #self.time * self.strain_rate * (self.bnd_length - x[0]) / self.bnd_length
+        values[0] = self.time * self.strain_rate * (self.bnd_length - x[0]) / self.bnd_length
+        values[1] = 0.0
+
+    def update_time(self, time_step):
+        self.time = time_step
+
+    def value_shape(self):
+        return (2,)
+
+class DisplacementExpressionY(fe.UserExpression):
+    def __init__(self, strain_rate, bnd_length, **kwargs):
+        super().__init__(**kwargs)
+        self.strain_rate = strain_rate
+        self.bnd_length = bnd_length
+        self.time = 1e-16
+
+    def eval(self, values, x):
+        values[0] = 0.0
+        # linearly increasing displacement in the y-direction with respect to time and y-coordinate
+        values[1] = self.time * self.strain_rate * (self.bnd_length - x[1]) / self.bnd_length
 
     def update_time(self, time_step):
         self.time = time_step

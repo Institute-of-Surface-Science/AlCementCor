@@ -6,8 +6,7 @@ import warnings
 import argparse
 from ffc.quadrature.deprecation import QuadratureRepresentationDeprecationWarning
 
-from AlCementCor.bnd import ConstantStrainRateBoundaryCondition, NoDisplacementBoundaryCondition, \
-    FunctionDisplacementBoundaryCondition, DisplacementExpression
+from AlCementCor.bnd import *
 from AlCementCor.config import *
 from AlCementCor.info import *
 from AlCementCor.input_file import *
@@ -35,7 +34,7 @@ def setup_boundary_conditions(V, two_layers, C_strain_rate, l_y):
 
     #top_condition = ConstantStrainRateBoundaryCondition(V, is_top_boundary, C_strain_rate)
     bnd_length = 5.0
-    displacement_func = DisplacementExpression(C_strain_rate, bnd_length)
+    displacement_func = DisplacementExpressionY(C_strain_rate, bnd_length)
     top_condition = FunctionDisplacementBoundaryCondition(V, is_top_boundary, displacement_func)
 
     # Create the conditions list
