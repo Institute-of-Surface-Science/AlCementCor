@@ -45,9 +45,24 @@ class ConstantStrainRateExp(fe.UserExpression):
     def update_time(self, time_step):
         self.time = time_step
 
+# Define class for Constant Strain Rate boundary condition
+class ConstantStrainRateBCX(BoundaryCondition):
+    def __init__(self, V, on_boundary, strain_rate):
+        super().__init__(V, on_boundary)
+        self.strain_rate_expr = ConstantStrainRateExp(strain_rate, degree=0)
+
+    def get_condition(self):
+        return fe.DirichletBC(self.V.sub(0), self.strain_rate_expr, self.on_boundary)
+
+    def get_homogenized_condition(self):
+        return fe.DirichletBC(self.V.sub(0), 0, self.on_boundary)
+
+    def update_time(self, time_step):
+        self.strain_rate_expr.update_time(time_step)
+
 
 # Define class for Constant Strain Rate boundary condition
-class ConstantStrainRateBoundaryCondition(BoundaryCondition):
+class ConstantStrainRateBCY(BoundaryCondition):
     def __init__(self, V, on_boundary, strain_rate):
         super().__init__(V, on_boundary)
         self.strain_rate_expr = ConstantStrainRateExp(strain_rate, degree=0)
