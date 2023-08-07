@@ -33,7 +33,7 @@ class NoDisplacementBoundaryCondition(BoundaryCondition):
         pass
 
 
-class StrainRateExpression(fe.UserExpression):
+class ConstantStrainRateExp(fe.UserExpression):
     def __init__(self, strain_rate, **kwargs):
         super().__init__(**kwargs)
         self.strain_rate = strain_rate
@@ -50,7 +50,7 @@ class StrainRateExpression(fe.UserExpression):
 class ConstantStrainRateBoundaryCondition(BoundaryCondition):
     def __init__(self, V, on_boundary, strain_rate):
         super().__init__(V, on_boundary)
-        self.strain_rate_expr = StrainRateExpression(strain_rate, degree=0)
+        self.strain_rate_expr = ConstantStrainRateExp(strain_rate, degree=0)
 
     def get_condition(self):
         return fe.DirichletBC(self.V.sub(1), self.strain_rate_expr, self.on_boundary)
@@ -77,7 +77,7 @@ class FunctionDisplacementBoundaryCondition(BoundaryCondition):
         self.displacement_function.update_time(time_step)
 
 
-class DisplacementExpressionX(fe.UserExpression):
+class LinearDisplacementX(fe.UserExpression):
     def __init__(self, strain_rate, bnd_length, **kwargs):
         super().__init__(**kwargs)
         self.strain_rate = strain_rate
@@ -95,7 +95,7 @@ class DisplacementExpressionX(fe.UserExpression):
     def value_shape(self):
         return (2,)
 
-class DisplacementExpressionY(fe.UserExpression):
+class LinearDisplacementY(fe.UserExpression):
     def __init__(self, strain_rate, bnd_length, **kwargs):
         super().__init__(**kwargs)
         self.strain_rate = strain_rate

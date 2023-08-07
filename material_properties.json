@@ -11,8 +11,8 @@
       "Poissons_ratio": 0.3,
       "Yield_strength": 277.33,
       "Tangent_modulus": 220.2,
-      "Linear_isotropic_hardening": 7100,
-      "Nonlinear_Ludwik_parameter": 6390,
+      "Linear_isotropic_hardening": 221,
+      "Nonlinear_Ludwik_parameter": 198.8,
       "Exponent_Ludwik": 0.7,
       "Swift_epsilon0": 0.19,
       "Exponent_Swift": 0.3
@@ -30,7 +30,7 @@
       "Poissons_ratio": 0.3,
       "Yield_strength": 100,
       "Tangent_modulus": 2000,
-      "Linear_isotropic_hardening": 10000
+      "Linear_isotropic_hardening": 2020.2
     }
   }
 }
