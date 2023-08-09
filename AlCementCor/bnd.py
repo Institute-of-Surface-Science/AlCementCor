@@ -45,6 +45,7 @@ class ConstantStrainRateExp(fe.UserExpression):
     def update_time(self, time_step):
         self.time = time_step
 
+
 # Define class for Constant Strain Rate boundary condition
 class ConstantStrainRateBCX(BoundaryCondition):
     def __init__(self, V, on_boundary, strain_rate):
@@ -92,16 +93,36 @@ class FunctionDisplacementBoundaryCondition(BoundaryCondition):
         self.displacement_function.update_time(time_step)
 
 
+class ConstantStrainRate(fe.UserExpression):
+    def __init__(self, strain_rate, **kwargs):
+        super().__init__(**kwargs)
+        self.strain_rateX = strain_rate[0]
+        self.strain_rateY = strain_rate[1]
+        self.time = 1e-16
+
+    def eval(self, values, x):
+        # linearly increasing displacement in the x-direction with respect to time and x-coordinate
+        values[0] = self.time * self.strain_rateX
+        values[1] = self.time * self.strain_rateY
+
+    def update_time(self, time_step):
+        self.time = time_step
+
+    def value_shape(self):
+        return (2,)
+
+
 class LinearDisplacementX(fe.UserExpression):
     def __init__(self, strain_rate, bnd_length, **kwargs):
         super().__init__(**kwargs)
-        self.strain_rate = strain_rate
+        self.strain_rateX = strain_rate[0]
+        self.strain_rateY = strain_rate[1]
         self.bnd_length = bnd_length
         self.time = 1e-16
 
     def eval(self, values, x):
         # linearly increasing displacement in the x-direction with respect to time and x-coordinate
-        values[0] = self.time * self.strain_rate * (self.bnd_length - x[0]) / self.bnd_length
+        values[0] = self.time * (self.strain_rateY * x[1] + self.strain_rateX * x[0]) / self.bnd_length
         values[1] = 0.0
 
     def update_time(self, time_step):
@@ -109,6 +130,7 @@ class LinearDisplacementX(fe.UserExpression):
 
     def value_shape(self):
         return (2,)
+
 
 class LinearDisplacementY(fe.UserExpression):
     def __init__(self, strain_rate, bnd_length, **kwargs):

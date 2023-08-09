@@ -7,7 +7,7 @@
     },
     "simulation_parameters": {
         "use_two_material_layers": true,
-        "integration_time_limit": 175000,
+        "integration_time_limit": 17500,
         "total_timesteps": 10000,
         "field_input_file": "CementOutput.json",
         "mesh_resolution": {
