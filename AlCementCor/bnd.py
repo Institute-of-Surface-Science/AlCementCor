@@ -1,4 +1,5 @@
 import fenics as fe
+import numpy as np
 from abc import ABC, abstractmethod
 
 
@@ -143,6 +144,30 @@ class LinearDisplacementY(fe.UserExpression):
         values[0] = 0.0
         # linearly increasing displacement in the y-direction with respect to time and y-coordinate
         values[1] = self.time * self.strain_rate * (self.bnd_length - x[0]) / self.bnd_length
+
+    def update_time(self, time_step):
+        self.time = time_step
+
+    def value_shape(self):
+        return (2,)
+
+
+class SinglePointDisplacement(fe.UserExpression):
+    def __init__(self, point, strain_rate, **kwargs):
+        super().__init__(**kwargs)
+        self.strain_rateX = strain_rate[0]
+        self.strain_rateY = strain_rate[1]
+        self.point = point
+        self.time = 1e-16
+
+    def eval(self, values, x):
+        distance = np.linalg.norm(self.point - x)
+        if distance < 1.0:
+            values[0] = self.time * self.strain_rateX
+            values[1] = self.time * self.strain_rateY
+        elif self.time < 10.0:
+            values[0] = self.time * self.strain_rateX * ((6.0 - distance)/6.0)**7
+            values[1] = self.time * self.strain_rateY * ((6.0 - distance)/6.0)**7
 
     def update_time(self, time_step):
         self.time = time_step

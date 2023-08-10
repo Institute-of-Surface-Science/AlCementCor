@@ -34,9 +34,9 @@ def setup_boundary_conditions(V, two_layers, C_strain_rate, l_x, l_y):
         return on_boundary and fe.near(x[0], l_x)
 
     # Define the boundary conditions
-    bnd_length = l_x
-    displacement_func = LinearDisplacementX((-C_strain_rate, 0.0), bnd_length)
-    #displacement_func = ConstantStrainRate((-C_strain_rate, 0.0))
+    # bnd_length = l_x
+    #displacement_func = LinearDisplacementX((-C_strain_rate, 0.0), bnd_length)
+    displacement_func = ConstantStrainRate((-C_strain_rate, 0.0))
     bottom_condition = FunctionDisplacementBoundaryCondition(V, is_bottom_boundary, displacement_func)
     #bottom_condition = NoDisplacementBoundaryCondition(V, is_bottom_boundary)
     # if two_layers:
@@ -49,16 +49,19 @@ def setup_boundary_conditions(V, two_layers, C_strain_rate, l_x, l_y):
     # displacement_func = LinearDisplacementX(-C_strain_rate, bnd_length)
     displacement_func = ConstantStrainRate((-C_strain_rate, 0.0))
     top_condition = FunctionDisplacementBoundaryCondition(V, is_top_boundary, displacement_func)
+    # top_condition = NoDisplacementBoundaryCondition(V, is_top_boundary)
 
-    bnd_length = l_y
-    displacement_func = LinearDisplacementX((0.0, -C_strain_rate), bnd_length)
+    # bnd_length = l_y
+    #displacement_func = SinglePointDisplacement((0.0, 6.0), (-C_strain_rate, 0.0))
+    displacement_func = ConstantStrainRate((-C_strain_rate, 0.0))
     left_condition = FunctionDisplacementBoundaryCondition(V, is_left_boundary, displacement_func)
 
-    displacement_func = ConstantStrainRate((-C_strain_rate, 0.0))
-    right_condition = FunctionDisplacementBoundaryCondition(V, is_right_boundary, displacement_func)
+    #displacement_func = SinglePointDisplacement((4.2, 6.0), (-C_strain_rate, 0.0))
+    #displacement_func = ConstantStrainRate((-C_strain_rate, 0.0))
+    #right_condition = FunctionDisplacementBoundaryCondition(V, is_right_boundary, displacement_func)
 
     # Create the conditions list
-    conditions = [bottom_condition, top_condition, left_condition, right_condition]
+    conditions = [bottom_condition, top_condition, left_condition]
 
     # Generate the Dirichlet boundary conditions
     bc = [condition.get_condition() for condition in conditions]
@@ -88,6 +91,9 @@ def setup_geometry(simulation_config):
     l_layer_x = simulation_config.layer_1_thickness if simulation_config.use_two_material_layers else 0.0
     l_layer_y = 0.0
     l_x = simulation_config.width + l_layer_x
+    #todo: hardcode
+    #multiplier_y = 3.0
+    # l_y = multiplier_y * simulation_config.length + l_layer_y
     l_y = simulation_config.length + l_layer_y
     mesh = fe.RectangleMesh(fe.Point(0.0, 0.0), fe.Point(l_x, l_y), simulation_config.mesh_resolution_x,
                             simulation_config.mesh_resolution_y)
