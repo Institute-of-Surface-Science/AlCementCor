@@ -65,6 +65,9 @@ class ExternalInput(Enum):
     OUTSIDE_P = "outside_points"
     INSIDE_P = "inside_points"
     TIME = "time"
+    STRAINX = "LE11"
+    STRAINY = "LE22"
+    STRAINZ = "LE33"
 
 
 def process_input_tensors(filename, plot=False):

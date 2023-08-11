@@ -15,6 +15,7 @@ from AlCementCor.info import *
 from AlCementCor.input_file import *
 from AlCementCor.material_properties import *
 from AlCementCor.interpolate import *
+from AlCementCor.postproc import plot_strain_displacement
 from AlCementCor.time_controller import PITimeController
 
 fe.parameters["form_compiler"]["representation"] = 'quadrature'
@@ -119,6 +120,8 @@ def load_simulation_config(file_name):
         displacement_x = result[ExternalInput.DISPLACEMENTX.value]
         displacement_y = result[ExternalInput.DISPLACEMENTY.value]
         displacement_z = result[ExternalInput.DISPLACEMENTZ.value]
+
+        plot_strain_displacement(result)
 
         displacement_x_center, displacement_y_center = interpolate_displacements(
             coordinates_on_center_plane, x_coordinates, y_coordinates, z_coordinates, displacement_x, displacement_y,
