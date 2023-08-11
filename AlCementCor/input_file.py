@@ -27,6 +27,7 @@ class InputFileKeys(Enum):
     X = "X"
     Y = "Y"
     Z = "Z"
+    TIME = "time"
     VARIABLES_TO_LOAD = ["LE11", "LE12", "LE22", "LE23", "LE31", "LE33",
                          "S11", "S12", "S22", "S23", "S31", "S33",
                          "T1", "T2", "T3"]
@@ -63,6 +64,7 @@ class ExternalInput(Enum):
     Z = "Z"
     OUTSIDE_P = "outside_points"
     INSIDE_P = "inside_points"
+    TIME = "time"
 
 
 def process_input_tensors(filename, plot=False):
@@ -138,6 +140,8 @@ def process_input_tensors(filename, plot=False):
     y_coordinates_0 = [y[0] for y in y_coordinates]
     z_coordinates_0 = [z[0] for z in z_coordinates]
 
+    number_of_timesteps = np.shape(x_coordinates)[1]
+
     # Combine coordinates into a single array
     coordinates_0 = np.column_stack([x_coordinates_0, y_coordinates_0, z_coordinates_0])
 
@@ -206,6 +210,15 @@ def process_input_tensors(filename, plot=False):
 
         plt.savefig("coord3d_0.png", dpi=300)
 
+    # Check if 'TIME' key exists in node_data
+    time = None
+    if InputFileKeys.TIME.value not in data.keys():
+        # Create the 'TIME' key with values increasing by 10 seconds for each time step
+        time = np.arange(0, number_of_timesteps * 10, 10)
+    else:
+        # If 'TIME' key exists, load it as usual
+        time = np.array(data[InputFileKeys.TIME.value])
+
     # Load other variables
     loaded_vars = {}
     for var in InputFileKeys.VARIABLES_TO_LOAD.value:
@@ -226,7 +239,8 @@ def process_input_tensors(filename, plot=False):
         ExternalInput.Y.value: np.array(y_coordinates),
         ExternalInput.Z.value: np.array(z_coordinates),
         ExternalInput.OUTSIDE_P.value: outside_indices,
-        ExternalInput.INSIDE_P.value: inside_indices
+        ExternalInput.INSIDE_P.value: inside_indices,
+        ExternalInput.TIME.value: time
     })
 
     return loaded_vars

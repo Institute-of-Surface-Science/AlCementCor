@@ -129,11 +129,12 @@ def load_simulation_config(file_name):
 
         def interpolate_displacements(center_yz_points, x_coordinates, y_coordinates, z_coordinates, displacement_x,
                                       displacement_y, displacement_z):
-            displacement_x_center = []
-            displacement_y_center = []
-            displacement_z_center = []
+            no_center_nodes = len(center_yz_points[0])
+            no_timesteps = len(x_coordinates[0])
+            displacement_x_center = np.empty((no_center_nodes, no_timesteps))
+            displacement_y_center = np.empty((no_center_nodes, no_timesteps))
 
-            for t in range(len(x_coordinates[0])):
+            for t in range(no_timesteps):
                 # Extracting coordinates for this timestep
                 coordinates_t = np.column_stack([x_coordinates[:, t], y_coordinates[:, t], z_coordinates[:, t]])
 
@@ -157,33 +158,36 @@ def load_simulation_config(file_name):
                     print("No non-collinear point found")
                     exit(-1)
 
+                # Normalize AB and AC
+                AB /= np.linalg.norm(AB)
+                AC -= np.dot(AB, AC) * AB  # Make AC orthogonal to AB
+                AC /= np.linalg.norm(AC)
+
                 # Interpolation functions for this timestep
                 interp_x = LinearNDInterpolator(coordinates_t, displacement_x[:, t])
                 interp_y = LinearNDInterpolator(coordinates_t, displacement_y[:, t])
                 interp_z = LinearNDInterpolator(coordinates_t, displacement_z[:, t])
 
-                # Interpolated and projected displacements for this timestep
-                for yz in center_yz_points_t:
+                # Interpolated displacements for this timestep, in-plane coordinates
+                for p, yz in enumerate(center_yz_points_t):
                     dx = interp_x(yz[0], yz[1], yz[2])
                     dy = interp_y(yz[0], yz[1], yz[2])
                     dz = interp_z(yz[0], yz[1], yz[2])
                     displacement = np.array([dx, dy, dz])
-                    projected_displacement = project_onto_plane(A, B, C, displacement)
-                    displacement_x_center.append(projected_displacement[0])
-                    displacement_y_center.append(projected_displacement[1])
-                    displacement_z_center.append(projected_displacement[2])
+                    disp_in_plane_1 = np.dot(displacement, AB)
+                    disp_in_plane_2 = np.dot(displacement, AC)
+                    displacement_x_center[p, t] = disp_in_plane_1
+                    displacement_y_center[p, t] = disp_in_plane_2
 
-            return displacement_x_center, displacement_y_center, displacement_z_center
+            return displacement_x_center, displacement_y_center
 
         displacement_x = result[ExternalInput.DISPLACEMENTX.value]
         displacement_y = result[ExternalInput.DISPLACEMENTY.value]
         displacement_z = result[ExternalInput.DISPLACEMENTZ.value]
 
-        displacement_x_center, displacement_y_center, displacement_z_center = interpolate_displacements(
+        displacement_x_center, displacement_y_center = interpolate_displacements(
             coordinates_on_center_plane, x_coordinates, y_coordinates, z_coordinates, displacement_x, displacement_y,
             displacement_z)
-        print(displacement_x_center)
-
 
     substrate_properties = MaterialProperties('material_properties.json', simulation_config.material)
     if simulation_config.use_two_material_layers:
