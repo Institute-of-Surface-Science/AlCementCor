@@ -153,6 +153,26 @@ class InPlaneInterpolator:
 
 def interpolate_displacements(center_yz_points, x_coordinates, y_coordinates, z_coordinates, displacement_x,
                               displacement_y, displacement_z):
+    """
+      Interpolates the displacements of given center points in the y-z plane over time and projects them onto the plane.
+
+      Parameters:
+          center_yz_points (list of lists of tuples): List containing the y-z center points for each timestep.
+          x_coordinates (ndarray): The x-coordinates for all nodes over time.
+          y_coordinates (ndarray): The y-coordinates for all nodes over time.
+          z_coordinates (ndarray): The z-coordinates for all nodes over time.
+          displacement_x (ndarray): The x-components of the displacement for all nodes over time.
+          displacement_y (ndarray): The y-components of the displacement for all nodes over time.
+          displacement_z (ndarray): The z-components of the displacement for all nodes over time.
+
+      Returns:
+          tuple: Two ndarrays, representing the interpolated in-plane displacements for each center point and timestep.
+                 The first array corresponds to displacements in the direction of the first in-plane basis vector (AB),
+                 and the second array corresponds to displacements in the direction of the second in-plane basis vector (AC).
+
+      Raises:
+          SystemExit: If no non-collinear point is found to define the plane.
+      """
     no_center_nodes = len(center_yz_points[0])
     no_timesteps = len(x_coordinates[0])
     displacement_x_center = np.empty((no_center_nodes, no_timesteps))
