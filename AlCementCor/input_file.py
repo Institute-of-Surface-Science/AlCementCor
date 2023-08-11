@@ -54,6 +54,9 @@ class ExternalInput(Enum):
     WIDTH = "width"
     LENGTH = "length"
     DISPLACEMENT = "displacement"
+    DISPLACEMENTX = "displacement_x"
+    DISPLACEMENTY = "displacement_y"
+    DISPLACEMENTZ = "displacement_z"
     RELDISPLACEMENT = "rel_displacement"
     X = "X"
     Y = "Y"
@@ -86,27 +89,34 @@ def process_input_tensors(filename, plot=False):
     y_coordinates = [node_data[node_id][InputFileKeys.Y.value] for node_id in node_data.keys()]
     z_coordinates = [node_data[node_id][InputFileKeys.Z.value] for node_id in node_data.keys()]
 
-    # Calculate displacement from initial position for each node, considering translation
-    displacement = []
-    for x, y, z in zip(x_coordinates, y_coordinates, z_coordinates):
-        node_displacement = []
-        for i in range(len(x) - 1):
-            # Calculate translation for this time step
-            translation_x = np.mean([xc[i + 1] - xc[i] for xc in x_coordinates])
-            translation_y = np.mean([yc[i + 1] - yc[i] for yc in y_coordinates])
-            translation_z = np.mean([zc[i + 1] - zc[i] for zc in z_coordinates])
+    # Determine the number of points and timesteps
+    num_points = len(x_coordinates)
+    num_timesteps = len(x_coordinates[0])
 
-            # Subtract translation from coordinates
-            dx = (x[i + 1] - x[i]) - translation_x
-            dy = (y[i + 1] - y[i]) - translation_y
-            dz = (z[i + 1] - z[i]) - translation_z
+    # Initialize displacement arrays with zeros
+    displacement_x = np.zeros((num_points, num_timesteps))
+    displacement_y = np.zeros_like(displacement_x)
+    displacement_z = np.zeros_like(displacement_x)
 
-            # Calculate displacement as Euclidean distance
-            node_displacement.append(np.sqrt(dx ** 2 + dy ** 2 + dz ** 2))
+    # Calculate displacement for subsequent timesteps
+    for t in range(1, num_timesteps):
+        # Calculate translation for this time step
+        translation_x = np.mean([xc[t] - xc[t - 1] for xc in x_coordinates])
+        translation_y = np.mean([yc[t] - yc[t - 1] for yc in y_coordinates])
+        translation_z = np.mean([zc[t] - zc[t - 1] for zc in z_coordinates])
 
-        displacement.append(node_displacement)
+        for i, (x, y, z) in enumerate(zip(x_coordinates, y_coordinates, z_coordinates)):
+            # Subtract translation from coordinates to get displacement
+            dx = (x[t] - x[t - 1]) - translation_x
+            dy = (y[t] - y[t - 1]) - translation_y
+            dz = (z[t] - z[t - 1]) - translation_z
 
-    print(displacement[0])
+            displacement_x[i, t] = dx
+            displacement_y[i, t] = dy
+            displacement_z[i, t] = dz
+
+    print(np.shape(displacement_y))
+
     # # Calculating relative coordinates
     # min_index = min(range(len(x_coordinates)),
     #                 key=lambda i: (abs(x_coordinates[i][0]), abs(y_coordinates[i][0]), abs(z_coordinates[i][0])))
@@ -139,12 +149,12 @@ def process_input_tensors(filename, plot=False):
     cluster_centers = kmeans.cluster_centers_
 
     # determine which cluster corresponds to "outside" (larger y values) and which to "inside"
-    outside_cluster = np.argmax(cluster_centers[:, 1])
+    outside_cluster = np.argmax(np.abs(cluster_centers[:, 1]))
     inside_cluster = 1 - outside_cluster
 
     # split points based on labels
-    outside_points = coordinates_0[labels == outside_cluster]
-    inside_points = coordinates_0[labels == inside_cluster]
+    outside_indices = np.where(labels == outside_cluster)[0]
+    inside_indices = np.where(labels == inside_cluster)[0]
 
     # Calculate the width of the volume
     y_coordinates_centroids = kmeans.cluster_centers_[:, 1]
@@ -171,15 +181,15 @@ def process_input_tensors(filename, plot=False):
                                              [node_data[node_id]["Y"][-1] for node_id in node_data.keys()],
                                              [node_data[node_id]["Z"][-1] for node_id in node_data.keys()]))
 
-        scatter2 = ax2.scatter(*final_coordinates.T, marker='o', c=labels.astype(float), cmap='viridis')
+        scatter2 = ax2.scatter(*coordinates_0.T, marker='o', c=labels.astype(float), cmap='viridis')
         ax2.set_xlabel('X')
         ax2.set_ylabel('Y')
         ax2.set_zlabel('Z')
         ax2.set_title('Final Node Distribution')
 
         for i in range(len(coordinates_0)):
-            ax2.plot([coordinates_0[i, 0], final_coordinates[i, 0]],
-                     [coordinates_0[i, 1], final_coordinates[i, 1]],
+            ax2.plot([coordinates_0[i, 0], coordinates_0[i, 0] + displacement_x[i][-1]],
+                     [coordinates_0[i, 1], coordinates_0[i, 1] + displacement_y[i][-1]],
                      [coordinates_0[i, 2], final_coordinates[i, 2]], 'gray',
                      label='Node displacement' if i == 0 else "")
 
@@ -208,13 +218,15 @@ def process_input_tensors(filename, plot=False):
     loaded_vars.update({
         ExternalInput.WIDTH.value: width[0],
         ExternalInput.LENGTH.value: length,
-        ExternalInput.DISPLACEMENT.value: np.array(displacement),
+        ExternalInput.DISPLACEMENTX.value: np.array(displacement_x),
+        ExternalInput.DISPLACEMENTY.value: np.array(displacement_y),
+        ExternalInput.DISPLACEMENTZ.value: np.array(displacement_z),
         # ExternalInput.RELDISPLACEMENT.value: np.array(rel_displacement),
         ExternalInput.X.value: np.array(x_coordinates),
         ExternalInput.Y.value: np.array(y_coordinates),
         ExternalInput.Z.value: np.array(z_coordinates),
-        ExternalInput.OUTSIDE_P.value: outside_points,
-        ExternalInput.INSIDE_P.value: inside_points
+        ExternalInput.OUTSIDE_P.value: outside_indices,
+        ExternalInput.INSIDE_P.value: inside_indices
     })
 
     return loaded_vars

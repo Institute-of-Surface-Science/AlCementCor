@@ -7,6 +7,7 @@ import warnings
 import argparse
 from ffc.quadrature.deprecation import QuadratureRepresentationDeprecationWarning
 from matplotlib.lines import Line2D
+from scipy.interpolate import LinearNDInterpolator
 
 from AlCementCor.bnd import *
 from AlCementCor.config import *
@@ -79,6 +80,78 @@ def load_simulation_config(file_name):
         result = process_input_tensors(simulation_config.field_input_file, plot=True)
         simulation_config.width = result[ExternalInput.WIDTH.value]
         simulation_config.length = result[ExternalInput.LENGTH.value]
+
+        # determine the y-z plane
+        x_coordinates = result[ExternalInput.X.value]
+        y_coordinates = result[ExternalInput.Y.value]
+        z_coordinates = result[ExternalInput.Z.value]
+
+        # Extract the outside and inside point indices
+        outside_indices = result[ExternalInput.OUTSIDE_P.value]
+        inside_indices = result[ExternalInput.INSIDE_P.value]
+
+        def get_center_yz_points(indices, x_coordinates, y_coordinates, z_coordinates, tolerance=1e-3):
+            center_yz_points_per_timestep = []
+            for t in range(x_coordinates.shape[1]):
+                x_values_t = x_coordinates[indices, t]
+                y_values_t = y_coordinates[indices, t]
+                z_values_t = z_coordinates[indices, t]
+                center_x_t = np.median(x_values_t)
+                center_yz_points_t = [(x, y, z) for x, y, z in zip(x_values_t, y_values_t, z_values_t) if
+                                      abs(x - center_x_t) < tolerance]
+                if len(center_yz_points_t) != 3:
+                    print("missing points")
+                    exit(-1)
+                center_yz_points_per_timestep.append(center_yz_points_t)
+            return center_yz_points_per_timestep
+
+        center_yz_points_outside = get_center_yz_points(outside_indices, np.array(x_coordinates),
+                                                        np.array(y_coordinates), np.array(z_coordinates))
+        center_yz_points_inside = get_center_yz_points(inside_indices, np.array(x_coordinates), np.array(y_coordinates),
+                                                       np.array(z_coordinates))
+
+        coordinates_on_center_plane = []
+        for outside_points_t, inside_points_t in zip(center_yz_points_outside, center_yz_points_inside):
+            combined_points_t = outside_points_t + inside_points_t
+            coordinates_on_center_plane.append(combined_points_t)
+
+        def interpolate_displacements(center_yz_points, x_coordinates, y_coordinates, z_coordinates, displacement_x,
+                                      displacement_y, displacement_z):
+            displacement_x_center = []
+            displacement_y_center = []
+            displacement_z_center = []
+
+            for t in range(len(x_coordinates[0])):
+                # Extracting coordinates for this timestep
+                coordinates_t = np.column_stack([x_coordinates[:, t], y_coordinates[:, t], z_coordinates[:, t]])
+
+                print(np.shape(coordinates_t))
+                print(np.shape(displacement_x))
+
+                # Extracting center_yz_points for this timestep
+                center_yz_points_t = [tuple(yz) for yz in center_yz_points[t]]
+
+                # Interpolation functions for this timestep
+                interp_x = LinearNDInterpolator(coordinates_t, displacement_x[:, t])
+                interp_y = LinearNDInterpolator(coordinates_t, displacement_y[:, t])
+                interp_z = LinearNDInterpolator(coordinates_t, displacement_z[:, t])
+
+                # Interpolated displacements for this timestep
+                displacement_x_center.append([interp_x(yz[0], yz[1], yz[2]) for yz in center_yz_points_t])
+                displacement_y_center.append([interp_y(yz[0], yz[1], yz[2]) for yz in center_yz_points_t])
+                displacement_z_center.append([interp_z(yz[0], yz[1], yz[2]) for yz in center_yz_points_t])
+
+            return displacement_x_center, displacement_y_center, displacement_z_center
+
+        displacement_x = result[ExternalInput.DISPLACEMENTX.value]
+        displacement_y = result[ExternalInput.DISPLACEMENTY.value]
+        displacement_z = result[ExternalInput.DISPLACEMENTZ.value]
+
+        displacement_x_center, displacement_y_center, displacement_z_center = interpolate_displacements(
+            coordinates_on_center_plane, x_coordinates, y_coordinates, z_coordinates, displacement_x, displacement_y,
+            displacement_z)
+        print(displacement_x_center)
+
 
     substrate_properties = MaterialProperties('material_properties.json', simulation_config.material)
     if simulation_config.use_two_material_layers:
