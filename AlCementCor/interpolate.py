@@ -126,29 +126,63 @@ def interpolate_in_time_and_space(old_coordinates, new_coordinates, old_times, n
 
 class InPlaneInterpolator:
     def __init__(self, time_values, center_yz_points, displacement_in_plane_1, displacement_in_plane_2):
-        # Create interpolators for the in-plane displacements
+        """
+        Initializes the interpolators for in-plane displacements.
+
+        Parameters:
+            time_values (array): Time values at each step.
+            center_yz_points (array): Y-Z coordinates of the center points.
+            displacement_in_plane_1, displacement_in_plane_2 (array): Displacements in the plane.
+        """
         self.interpolator_1 = self._create_interpolator(time_values, center_yz_points, displacement_in_plane_1)
         self.interpolator_2 = self._create_interpolator(time_values, center_yz_points, displacement_in_plane_2)
 
     def _create_interpolator(self, time_values, center_yz_points, displacement_values):
-        # Construct a 3D grid of points (time, x, y, z)
-        time_grid, x_grid, y_grid, z_grid = np.meshgrid(time_values, center_yz_points[:, :, 0],
-                                                        center_yz_points[:, :, 1], center_yz_points[:, :, 2],
-                                                        indexing='ij')
+        """
+        Constructs an interpolator for the given values.
+
+        Parameters:
+            time_values (array): Time values at each step.
+            center_yz_points (array): Y-Z coordinates of the center points.
+            displacement_values (array): Displacement values.
+
+        Returns:
+            RegularGridInterpolator: The created interpolator.
+        """
+
+        # Construct a 4D grid of points (time, x, y, z)
+        time_grid, x_grid, y_grid, z_grid = np.meshgrid(
+            time_values,
+            center_yz_points[:, :, 0],
+            center_yz_points[:, :, 1],
+            center_yz_points[:, :, 2],
+            indexing='ij'
+        )
         points = np.column_stack([time_grid.flatten(), x_grid.flatten(), y_grid.flatten(), z_grid.flatten()])
 
         # Create and return the interpolator
-        return RegularGridInterpolator((time_values, center_yz_points[:, :, 0].flatten(),
-                                        center_yz_points[:, :, 1].flatten(), center_yz_points[:, :, 2].flatten()),
-                                       displacement_values.flatten(), bounds_error=False)
+        return RegularGridInterpolator(
+            (time_values, x_grid.flatten(), y_grid.flatten(), z_grid.flatten()),
+            displacement_values.flatten(),
+            bounds_error=False
+        )
 
     def get_displacement_at_point(self, time_value, query_point):
-        # Query the interpolators at the given time and point
-        query = np.array([time_value] + list(query_point))
-        displacement_at_point_1 = self.interpolator_1(query)
-        displacement_at_point_2 = self.interpolator_2(query)
+        """
+        Queries the interpolators at the given time and point.
 
-        return displacement_at_point_1, displacement_at_point_2
+        Parameters:
+            time_value (float): The time value for the query.
+            query_point (array): The spatial coordinates for the query.
+
+        Returns:
+            tuple: The interpolated displacements at the given time and point.
+        """
+        query = np.concatenate(([time_value], query_point))
+        displacement_1 = self.interpolator_1(query)
+        displacement_2 = self.interpolator_2(query)
+
+        return displacement_1, displacement_2
 
 
 def interpolate_displacements(center_points, x_coords, y_coords, z_coords, x_displacements,
