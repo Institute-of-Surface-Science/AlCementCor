@@ -86,27 +86,42 @@ def process_input_tensors(filename, plot=False):
     y_coordinates = [node_data[node_id][InputFileKeys.Y.value] for node_id in node_data.keys()]
     z_coordinates = [node_data[node_id][InputFileKeys.Z.value] for node_id in node_data.keys()]
 
-    min_index = min(range(len(x_coordinates)),
-                    key=lambda i: (abs(x_coordinates[i][0]), abs(y_coordinates[i][0]), abs(z_coordinates[i][0])))
-
-    # Calculating relative coordinates
-    relative_x_coordinates = [[x - x_coordinates[min_index][i] for i, x in enumerate(coords)] for coords in
-                              x_coordinates]
-    relative_y_coordinates = [[y - y_coordinates[min_index][i] for i, y in enumerate(coords)] for coords in
-                              y_coordinates]
-    relative_z_coordinates = [[z - z_coordinates[min_index][i] for i, z in enumerate(coords)] for coords in
-                              z_coordinates]
-
-    # Calculate displacement from initial position for each node
+    # Calculate displacement from initial position for each node, considering translation
     displacement = []
     for x, y, z in zip(x_coordinates, y_coordinates, z_coordinates):
-        displacement.append([np.sqrt((x[i+1] - x[i]) ** 2 + (y[i+1] - y[i]) ** 2 + (z[i+1] - z[i]) ** 2)
-                             for i in range(len(x) - 1)])
+        node_displacement = []
+        for i in range(len(x) - 1):
+            # Calculate translation for this time step
+            translation_x = np.mean([xc[i + 1] - xc[i] for xc in x_coordinates])
+            translation_y = np.mean([yc[i + 1] - yc[i] for yc in y_coordinates])
+            translation_z = np.mean([zc[i + 1] - zc[i] for zc in z_coordinates])
 
-    rel_displacement = []
-    for x, y, z in zip(relative_x_coordinates, relative_y_coordinates, relative_z_coordinates):
-        rel_displacement.append([np.sqrt((x[i+1] - x[i]) ** 2 + (y[i+1] - y[i]) ** 2 + (z[i+1] - z[i]) ** 2)
-                             for i in range(len(x) - 1)])
+            # Subtract translation from coordinates
+            dx = (x[i + 1] - x[i]) - translation_x
+            dy = (y[i + 1] - y[i]) - translation_y
+            dz = (z[i + 1] - z[i]) - translation_z
+
+            # Calculate displacement as Euclidean distance
+            node_displacement.append(np.sqrt(dx ** 2 + dy ** 2 + dz ** 2))
+
+        displacement.append(node_displacement)
+
+    print(displacement[0])
+    # # Calculating relative coordinates
+    # min_index = min(range(len(x_coordinates)),
+    #                 key=lambda i: (abs(x_coordinates[i][0]), abs(y_coordinates[i][0]), abs(z_coordinates[i][0])))
+    #
+    # relative_x_coordinates = [[x - x_coordinates[min_index][i] for i, x in enumerate(coords)] for coords in
+    #                           x_coordinates]
+    # relative_y_coordinates = [[y - y_coordinates[min_index][i] for i, y in enumerate(coords)] for coords in
+    #                           y_coordinates]
+    # relative_z_coordinates = [[z - z_coordinates[min_index][i] for i, z in enumerate(coords)] for coords in
+    #                           z_coordinates]
+    #
+    # rel_displacement = []
+    # for x, y, z in zip(relative_x_coordinates, relative_y_coordinates, relative_z_coordinates):
+    #     rel_displacement.append([np.sqrt((x[i+1] - x[i]) ** 2 + (y[i+1] - y[i]) ** 2 + (z[i+1] - z[i]) ** 2)
+    #                          for i in range(len(x) - 1)])
 
     # Get coordinates for the first timestep for further calculations
     x_coordinates_0 = [x[0] for x in x_coordinates]
@@ -194,7 +209,7 @@ def process_input_tensors(filename, plot=False):
         ExternalInput.WIDTH.value: width[0],
         ExternalInput.LENGTH.value: length,
         ExternalInput.DISPLACEMENT.value: np.array(displacement),
-        ExternalInput.RELDISPLACEMENT.value: np.array(rel_displacement),
+        # ExternalInput.RELDISPLACEMENT.value: np.array(rel_displacement),
         ExternalInput.X.value: np.array(x_coordinates),
         ExternalInput.Y.value: np.array(y_coordinates),
         ExternalInput.Z.value: np.array(z_coordinates),
