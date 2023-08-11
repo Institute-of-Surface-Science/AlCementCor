@@ -173,54 +173,38 @@ def interpolate_displacements(center_yz_points, x_coordinates, y_coordinates, z_
       Raises:
           SystemExit: If no non-collinear point is found to define the plane.
       """
-    no_center_nodes = len(center_yz_points[0])
-    no_timesteps = len(x_coordinates[0])
+    no_center_nodes, no_timesteps = len(center_yz_points[0]), x_coordinates.shape[1]
     displacement_x_center = np.empty((no_center_nodes, no_timesteps))
     displacement_y_center = np.empty((no_center_nodes, no_timesteps))
 
+    center_yz_points = np.array(center_yz_points)
+
     for t in range(no_timesteps):
-        # Extracting coordinates for this timestep
-        coordinates_t = np.column_stack([x_coordinates[:, t], y_coordinates[:, t], z_coordinates[:, t]])
+        coordinates_t = np.column_stack((x_coordinates[:, t], y_coordinates[:, t], z_coordinates[:, t]))
+        center_yz_points_t = center_yz_points[t]
 
-        # Extracting center_yz_points for this timestep
-        center_yz_points_t = [tuple(yz) for yz in center_yz_points[t]]
+        A, B = center_yz_points_t[:2]
+        AB = B - A
+        AB /= np.linalg.norm(AB)
 
-        # Start with the first two points from center_yz_points_t
-        A = np.array(center_yz_points_t[0])
-        B = np.array(center_yz_points_t[1])
         C = None
-
-        # Find a third point that is not collinear with A and B
         for point in center_yz_points_t[2:]:
-            C = np.array(point)
-            AB = B - A
+            C = point
             AC = C - A
             cross_product = np.cross(AB, AC)
-            if np.linalg.norm(cross_product) > 1e-6:  # tolerance for numerical errors
+            if np.linalg.norm(cross_product) > 1e-6:
+                AC -= np.dot(AB, AC) * AB
+                AC /= np.linalg.norm(AC)
                 break
         else:
-            print("No non-collinear point found")
-            exit(-1)
+            raise ValueError("No non-collinear point found")
 
-        # Normalize AB and AC
-        AB /= np.linalg.norm(AB)
-        AC -= np.dot(AB, AC) * AB  # Make AC orthogonal to AB
-        AC /= np.linalg.norm(AC)
+        interp_funcs = [LinearNDInterpolator(coordinates_t, displacement[:, t])
+                        for displacement in [displacement_x, displacement_y, displacement_z]]
 
-        # Interpolation functions for this timestep
-        interp_x = LinearNDInterpolator(coordinates_t, displacement_x[:, t])
-        interp_y = LinearNDInterpolator(coordinates_t, displacement_y[:, t])
-        interp_z = LinearNDInterpolator(coordinates_t, displacement_z[:, t])
-
-        # Interpolated displacements for this timestep, in-plane coordinates
         for p, yz in enumerate(center_yz_points_t):
-            dx = interp_x(yz[0], yz[1], yz[2])
-            dy = interp_y(yz[0], yz[1], yz[2])
-            dz = interp_z(yz[0], yz[1], yz[2])
-            displacement = np.array([dx, dy, dz])
-            disp_in_plane_1 = np.dot(displacement, AB)
-            disp_in_plane_2 = np.dot(displacement, AC)
-            displacement_x_center[p, t] = disp_in_plane_1
-            displacement_y_center[p, t] = disp_in_plane_2
+            displacement = np.array([func(*yz) for func in interp_funcs])
+            displacement_x_center[p, t] = np.dot(displacement, AB)
+            displacement_y_center[p, t] = np.dot(displacement, AC)
 
     return displacement_x_center, displacement_y_center
