@@ -7,7 +7,6 @@ import warnings
 import argparse
 from ffc.quadrature.deprecation import QuadratureRepresentationDeprecationWarning
 from matplotlib.lines import Line2D
-from scipy.interpolate import LinearNDInterpolator
 from scipy.interpolate import RegularGridInterpolator
 
 from AlCementCor.bnd import *
@@ -116,72 +115,6 @@ def load_simulation_config(file_name):
         for outside_points_t, inside_points_t in zip(center_yz_points_outside, center_yz_points_inside):
             combined_points_t = outside_points_t + inside_points_t
             coordinates_on_center_plane.append(combined_points_t)
-
-        def project_onto_plane(A, B, C, displacement):
-            AB = B - A
-            AC = C - A
-            normal = np.cross(AB, AC)
-            normal_magnitude = np.linalg.norm(normal)
-            if normal_magnitude == 0:
-                print("Points A, B, and C are collinear; they do not define a plane")
-                # Handle this special case as needed for your application
-                return displacement  # This is just an example; you might want to do something else
-            normal_hat = normal / normal_magnitude
-            return displacement - (np.dot(displacement, normal_hat) * normal_hat)
-
-        def interpolate_displacements(center_yz_points, x_coordinates, y_coordinates, z_coordinates, displacement_x,
-                                      displacement_y, displacement_z):
-            no_center_nodes = len(center_yz_points[0])
-            no_timesteps = len(x_coordinates[0])
-            displacement_x_center = np.empty((no_center_nodes, no_timesteps))
-            displacement_y_center = np.empty((no_center_nodes, no_timesteps))
-
-            for t in range(no_timesteps):
-                # Extracting coordinates for this timestep
-                coordinates_t = np.column_stack([x_coordinates[:, t], y_coordinates[:, t], z_coordinates[:, t]])
-
-                # Extracting center_yz_points for this timestep
-                center_yz_points_t = [tuple(yz) for yz in center_yz_points[t]]
-
-                # Start with the first two points from center_yz_points_t
-                A = np.array(center_yz_points_t[0])
-                B = np.array(center_yz_points_t[1])
-                C = None
-
-                # Find a third point that is not collinear with A and B
-                for point in center_yz_points_t[2:]:
-                    C = np.array(point)
-                    AB = B - A
-                    AC = C - A
-                    cross_product = np.cross(AB, AC)
-                    if np.linalg.norm(cross_product) > 1e-6:  # tolerance for numerical errors
-                        break
-                else:
-                    print("No non-collinear point found")
-                    exit(-1)
-
-                # Normalize AB and AC
-                AB /= np.linalg.norm(AB)
-                AC -= np.dot(AB, AC) * AB  # Make AC orthogonal to AB
-                AC /= np.linalg.norm(AC)
-
-                # Interpolation functions for this timestep
-                interp_x = LinearNDInterpolator(coordinates_t, displacement_x[:, t])
-                interp_y = LinearNDInterpolator(coordinates_t, displacement_y[:, t])
-                interp_z = LinearNDInterpolator(coordinates_t, displacement_z[:, t])
-
-                # Interpolated displacements for this timestep, in-plane coordinates
-                for p, yz in enumerate(center_yz_points_t):
-                    dx = interp_x(yz[0], yz[1], yz[2])
-                    dy = interp_y(yz[0], yz[1], yz[2])
-                    dz = interp_z(yz[0], yz[1], yz[2])
-                    displacement = np.array([dx, dy, dz])
-                    disp_in_plane_1 = np.dot(displacement, AB)
-                    disp_in_plane_2 = np.dot(displacement, AC)
-                    displacement_x_center[p, t] = disp_in_plane_1
-                    displacement_y_center[p, t] = disp_in_plane_2
-
-            return displacement_x_center, displacement_y_center
 
         displacement_x = result[ExternalInput.DISPLACEMENTX.value]
         displacement_y = result[ExternalInput.DISPLACEMENTY.value]
