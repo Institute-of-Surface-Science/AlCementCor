@@ -151,67 +151,58 @@ class InPlaneInterpolator:
         return displacement_at_point_1, displacement_at_point_2
 
 
-def interpolate_displacements(center_yz_points, x_coordinates, y_coordinates, z_coordinates, displacement_x,
-                              displacement_y, displacement_z):
+def interpolate_displacements(center_points, x_coords, y_coords, z_coords, x_displacements,
+                              y_displacements, z_displacements):
     """
-      Interpolates the displacements of given center points in the y-z plane over time and projects them onto the plane.
+    Interpolates the displacements of given center points in a plane over time and projects them onto the plane.
 
-      Parameters:
-          center_yz_points (list of lists of tuples): List containing the y-z center points for each timestep.
-          x_coordinates (ndarray): The x-coordinates for all nodes over time.
-          y_coordinates (ndarray): The y-coordinates for all nodes over time.
-          z_coordinates (ndarray): The z-coordinates for all nodes over time.
-          displacement_x (ndarray): The x-components of the displacement for all nodes over time.
-          displacement_y (ndarray): The y-components of the displacement for all nodes over time.
-          displacement_z (ndarray): The z-components of the displacement for all nodes over time.
+    Parameters:
+        center_points (list): List of center points of the plane.
+        x_coords, y_coords, z_coords (array): Coordinates of the points.
+        x_displacements, y_displacements, z_displacements (array): Displacements in each direction.
 
-      Returns:
-          tuple: Two ndarrays, representing the interpolated in-plane displacements for each center point and timestep.
-                 The first array corresponds to displacements in the direction of the first in-plane basis vector (AB),
-                 and the second array corresponds to displacements in the direction of the second in-plane basis vector (AC).
+    Returns:
+        tuple: Interpolated displacements in the x and y directions projected onto the plane.
+    """
+    num_center_nodes, num_timesteps = len(center_points[0]), x_coords.shape[1]
+    displacements_in_plane_x = np.empty((num_center_nodes, num_timesteps))
+    displacements_in_plane_y = np.empty((num_center_nodes, num_timesteps))
 
-      Raises:
-          SystemExit: If no non-collinear point is found to define the plane.
-      """
-    no_center_nodes, no_timesteps = len(center_yz_points[0]), x_coordinates.shape[1]
-    displacement_x_center = np.empty((no_center_nodes, no_timesteps))
-    displacement_y_center = np.empty((no_center_nodes, no_timesteps))
+    center_points = np.array(center_points)
 
-    center_yz_points = np.array(center_yz_points)
-
-    for t in range(no_timesteps):
-        # Combine x, y, z coordinates for this timestep
-        coordinates_t = np.column_stack((x_coordinates[:, t], y_coordinates[:, t], z_coordinates[:, t]))
+    for timestep in range(num_timesteps):
+        # Combine coordinates for this timestep
+        coordinates_at_timestep = np.column_stack((x_coords[:, timestep], y_coords[:, timestep], z_coords[:, timestep]))
 
         # Retrieve the center points for this timestep
-        center_yz_points_t = center_yz_points[t]
+        center_points_at_timestep = center_points[timestep]
 
         # Define points A and B and calculate normalized vector AB
-        A, B = center_yz_points_t[:2]
-        AB = B - A
-        AB /= np.linalg.norm(AB)
+        point_A, point_B = center_points_at_timestep[:2]
+        vector_AB = point_B - point_A
+        vector_AB /= np.linalg.norm(vector_AB)
 
         # Find a non-collinear point C and calculate normalized vector AC
-        C = None
-        for point in center_yz_points_t[2:]:
-            C = point
-            AC = C - A
-            cross_product = np.cross(AB, AC)
+        vector_AC = None
+        for point in center_points_at_timestep[2:]:
+            point_C = point
+            vector_AC = point_C - point_A
+            cross_product = np.cross(vector_AB, vector_AC)
             if np.linalg.norm(cross_product) > 1e-6:
-                AC -= np.dot(AB, AC) * AB
-                AC /= np.linalg.norm(AC)
+                vector_AC -= np.dot(vector_AB, vector_AC) * vector_AB
+                vector_AC /= np.linalg.norm(vector_AC)
                 break
         else:
             raise ValueError("No non-collinear point found")
 
         # Create interpolation functions for this timestep
-        interp_funcs = [LinearNDInterpolator(coordinates_t, displacement[:, t])
-                        for displacement in [displacement_x, displacement_y, displacement_z]]
+        interp_funcs = [LinearNDInterpolator(coordinates_at_timestep, displacement[:, timestep])
+                        for displacement in [x_displacements, y_displacements, z_displacements]]
 
         # Interpolate the displacements for each center point
-        for p, yz in enumerate(center_yz_points_t):
-            displacement = np.array([func(*yz) for func in interp_funcs])
-            displacement_x_center[p, t] = np.dot(displacement, AB)
-            displacement_y_center[p, t] = np.dot(displacement, AC)
+        for p, point in enumerate(center_points_at_timestep):
+            interpolated_displacement = np.array([func(*point) for func in interp_funcs])
+            displacements_in_plane_x[p, timestep] = np.dot(interpolated_displacement, vector_AB)
+            displacements_in_plane_y[p, timestep] = np.dot(interpolated_displacement, vector_AC)
 
-    return displacement_x_center, displacement_y_center
+    return displacements_in_plane_x, displacements_in_plane_y
