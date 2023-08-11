@@ -8,12 +8,14 @@ import argparse
 from ffc.quadrature.deprecation import QuadratureRepresentationDeprecationWarning
 from matplotlib.lines import Line2D
 from scipy.interpolate import LinearNDInterpolator
+from scipy.interpolate import RegularGridInterpolator
 
 from AlCementCor.bnd import *
 from AlCementCor.config import *
 from AlCementCor.info import *
 from AlCementCor.input_file import *
 from AlCementCor.material_properties import *
+from AlCementCor.interpolate import *
 from AlCementCor.time_controller import PITimeController
 
 fe.parameters["form_compiler"]["representation"] = 'quadrature'
@@ -188,6 +190,20 @@ def load_simulation_config(file_name):
         displacement_x_center, displacement_y_center = interpolate_displacements(
             coordinates_on_center_plane, x_coordinates, y_coordinates, z_coordinates, displacement_x, displacement_y,
             displacement_z)
+
+        # # Assuming time_values are extracted from your data
+        # time_values = result[ExternalInput.TIME.value]
+        #
+        # # Create an InPlaneInterpolator instance for both in-plane displacements
+        # in_plane_interpolator = InPlaneInterpolator(time_values, coordinates_on_center_plane, displacement_x_center,
+        #                                             displacement_y_center)
+        #
+        # # Now you can query this interpolator for displacements at any time and point in the plane
+        # query_time = 25.0  # for example
+        # query_point = (5.0, 2.0, 3.0)  # for example, assuming it's within the bounds of your data
+        # disp_at_query_time_and_point_1, disp_at_query_time_and_point_2 = in_plane_interpolator.get_displacement_at_point(
+        #     query_time, query_point)
+
 
     substrate_properties = MaterialProperties('material_properties.json', simulation_config.material)
     if simulation_config.use_two_material_layers:
