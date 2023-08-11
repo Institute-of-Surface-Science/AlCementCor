@@ -180,13 +180,18 @@ def interpolate_displacements(center_yz_points, x_coordinates, y_coordinates, z_
     center_yz_points = np.array(center_yz_points)
 
     for t in range(no_timesteps):
+        # Combine x, y, z coordinates for this timestep
         coordinates_t = np.column_stack((x_coordinates[:, t], y_coordinates[:, t], z_coordinates[:, t]))
+
+        # Retrieve the center points for this timestep
         center_yz_points_t = center_yz_points[t]
 
+        # Define points A and B and calculate normalized vector AB
         A, B = center_yz_points_t[:2]
         AB = B - A
         AB /= np.linalg.norm(AB)
 
+        # Find a non-collinear point C and calculate normalized vector AC
         C = None
         for point in center_yz_points_t[2:]:
             C = point
@@ -199,9 +204,11 @@ def interpolate_displacements(center_yz_points, x_coordinates, y_coordinates, z_
         else:
             raise ValueError("No non-collinear point found")
 
+        # Create interpolation functions for this timestep
         interp_funcs = [LinearNDInterpolator(coordinates_t, displacement[:, t])
                         for displacement in [displacement_x, displacement_y, displacement_z]]
 
+        # Interpolate the displacements for each center point
         for p, yz in enumerate(center_yz_points_t):
             displacement = np.array([func(*yz) for func in interp_funcs])
             displacement_x_center[p, t] = np.dot(displacement, AB)
