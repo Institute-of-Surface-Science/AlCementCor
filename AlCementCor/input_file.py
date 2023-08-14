@@ -35,6 +35,7 @@ class InputFileKeys(Enum):
     LOGARITHMIC_STRAIN_31 = "LE31"
     LOGARITHMIC_STRAIN_33 = "LE33"
     LOGARITHMIC_STRAIN_TENSOR = ["LE11", "LE12", "LE22", "LE23", "LE31", "LE33"]
+    STRESS_TENSOR = ["S11", "S12", "S22", "S23", "S31", "S33"]
     VARIABLES_TO_LOAD = ["LE11", "LE12", "LE22", "LE23", "LE31", "LE33",
                          "S11", "S12", "S22", "S23", "S31", "S33",
                          "T1", "T2", "T3"]
@@ -138,6 +139,16 @@ def process_input_tensors(filename, plot=False):
         log_strain_tensors.append(node_strain)
     log_strain_tensors = np.array(log_strain_tensors)
 
+
+    # # Extract stress Tensors
+    # stress_tensors = []
+    # for node_id in node_data.keys():
+    #     node_stress = []
+    #     for skey in InputFileKeys.STRESS_TENSOR.value:
+    #         node_stress.append(node_data[node_id][skey])
+    #     stress_tensors.append(node_stress)
+    # stress_tensors = np.array(stress_tensors)
+
     # # Calculating relative coordinates
     # min_index = min(range(len(x_coordinates)),
     #                 key=lambda i: (abs(x_coordinates[i][0]), abs(y_coordinates[i][0]), abs(z_coordinates[i][0])))
@@ -165,21 +176,39 @@ def process_input_tensors(filename, plot=False):
     coordinates_0 = np.column_stack([x_coordinates_0, y_coordinates_0, z_coordinates_0])
 
     # Convert Logarithmic Strain Tensors to approximate displacements
+    # displacements_from_strain = []
+    # for node_strain, x0, y0, z0 in zip(log_strain_tensors, x_coordinates_0, y_coordinates_0, z_coordinates_0):
+    #     displacements = [np.array([0, 0, 0])]  # Initialize with zero displacement at timestep 0
+    #     for t in range(len(node_strain[0]) - 1):
+    #         strain_t = np.array([le[t + 1] - le[t] for le in node_strain])
+    #         strain_matrix = np.array([
+    #             [strain_t[0], strain_t[1], strain_t[4]],
+    #             [strain_t[1], strain_t[2], strain_t[5]],
+    #             [strain_t[4], strain_t[5], strain_t[3]]
+    #         ])
+    #         displacement_t = np.dot(strain_matrix, [x0, y0, z0])
+    #         displacements.append(displacement_t)
+    #     displacements_from_strain.append(displacements)
+    #
+    # displacements_from_strain = np.array(displacements_from_strain)
+
     displacements_from_strain = []
     for node_strain, x0, y0, z0 in zip(log_strain_tensors, x_coordinates_0, y_coordinates_0, z_coordinates_0):
-        displacements = []
-        for t in range(len(node_strain[0]) - 1):
-            strain_t = np.array([le[t + 1] - le[t] for le in node_strain])
-            strain_matrix = np.array([
-                [strain_t[0], strain_t[1], strain_t[4]],
-                [strain_t[1], strain_t[2], strain_t[5]],
-                [strain_t[4], strain_t[5], strain_t[3]]
-            ])
-            displacement_t = np.dot(strain_matrix, [x0, y0, z0])
-            displacements.append(displacement_t)
+        displacements = [np.array([0, 0, 0])]  # Initialize with zero displacement at timestep 0
+        displacement_t = np.array([0, 0, 0])
+        for t in range(1, len(node_strain[0])):
+            strain_increment = np.array([node_strain[i][t] - node_strain[i][t - 1] for i in [0, 2, 5]])
+            displacement_increment = strain_increment * [x0, y0, z0] + displacement_t
+            displacements.append(displacement_increment)
+            displacement_t = displacement_increment  # Update cumulative displacement
+            if len(displacements_from_strain)+1 == 16:
+                print("disp:", displacement_t, "strain ", strain_increment)
         displacements_from_strain.append(displacements)
 
     displacements_from_strain = np.array(displacements_from_strain)
+
+    print(np.shape(displacements_from_strain))
+    print(displacements_from_strain[15,:,:])
 
     # Perform clustering to differentiate between inside and outside points
     kmeans = KMeans(n_clusters=2, random_state=0).fit(coordinates_0[:, :2])
@@ -267,9 +296,12 @@ def process_input_tensors(filename, plot=False):
     loaded_vars.update({
         ExternalInput.WIDTH.value: width[0],
         ExternalInput.LENGTH.value: length,
-        ExternalInput.DISPLACEMENTX.value: np.array(displacement_x),
-        ExternalInput.DISPLACEMENTY.value: np.array(displacement_y),
-        ExternalInput.DISPLACEMENTZ.value: np.array(displacement_z),
+        # ExternalInput.DISPLACEMENTX.value: np.array(displacement_x),
+        # ExternalInput.DISPLACEMENTY.value: np.array(displacement_y),
+        # ExternalInput.DISPLACEMENTZ.value: np.array(displacement_z),
+        ExternalInput.DISPLACEMENTX.value: np.array(displacements_from_strain[:,:,0]),
+        ExternalInput.DISPLACEMENTY.value: np.array(displacements_from_strain[:,:,1]),
+        ExternalInput.DISPLACEMENTZ.value: np.array(displacements_from_strain[:,:,2]),
         # ExternalInput.RELDISPLACEMENT.value: np.array(rel_displacement),
         ExternalInput.X.value: np.array(x_coordinates),
         ExternalInput.Y.value: np.array(y_coordinates),
