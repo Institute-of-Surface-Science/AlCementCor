@@ -5,3 +5,7 @@
 .idea/
 jitfailure-dolfin_expression_*
 *.pyc
+
+pyproject.toml
+
+poetry.lock
