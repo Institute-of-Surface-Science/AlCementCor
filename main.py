@@ -118,6 +118,8 @@ def load_simulation_config(file_name):
             combined_points_t = outside_points_t + inside_points_t
             coordinates_on_center_plane.append(combined_points_t)
 
+
+
         displacement_x = result[ExternalInput.DISPLACEMENTX.value]
         displacement_y = result[ExternalInput.DISPLACEMENTY.value]
         displacement_z = result[ExternalInput.DISPLACEMENTZ.value]
@@ -127,6 +129,67 @@ def load_simulation_config(file_name):
         displacement_x_center, displacement_y_center = interpolate_displacements(
             coordinates_on_center_plane, x_coordinates, y_coordinates, z_coordinates, displacement_x, displacement_y,
             displacement_z)
+
+        print("displacement_x_center", displacement_x_center)
+
+        def plot_displacement(displacement_x_center, displacement_y_center):
+            timesteps = range(len(displacement_x_center[0]))  # assuming all nodes have the same number of timesteps
+
+            num_nodes = len(displacement_x_center)
+
+            plt.figure(figsize=(15, num_nodes * 5))  # adjusting the figure size based on number of nodes
+
+            for i in range(num_nodes):
+                # Plotting displacement_x_center for node i
+                plt.subplot(num_nodes, 2, 2 * i + 1)
+                plt.plot(timesteps, displacement_x_center[i], marker='o', linestyle='-', color='blue')
+                plt.title(f"Displacement X Center for Node {i} vs Time")
+                plt.xlabel("Time")
+                plt.ylabel(f"Displacement X for Node {i}")
+
+                # Plotting displacement_y_center for node i
+                plt.subplot(num_nodes, 2, 2 * i + 2)
+                plt.plot(timesteps, displacement_y_center[i], marker='o', linestyle='-', color='red')
+                plt.title(f"Displacement Y Center for Node {i} vs Time")
+                plt.xlabel("Time")
+                plt.ylabel(f"Displacement Y for Node {i}")
+
+            plt.tight_layout()
+            plt.savefig("disp_center.png")
+
+        # Call the plot function
+        plot_displacement(displacement_x_center, displacement_y_center)
+
+        def plot_movement(coordinates_on_center_plane, displacement_x_center, displacement_y_center):
+            # Assuming the structure of coordinates_on_center_plane is [timestep][node_id][coordinate]
+            # Extracting original x and y coordinates from the first timestep
+            original_x_coordinates = [point[1] for point in coordinates_on_center_plane[0]]
+            original_y_coordinates = [point[2] for point in coordinates_on_center_plane[0]]
+
+            # Compute the average displacements over all time steps for each node
+            avg_displacement_x = np.mean(displacement_x_center, axis=1)
+            avg_displacement_y = np.mean(displacement_y_center, axis=1)
+
+            plt.figure(figsize=(10, 10))
+
+            # Plot original points
+            plt.scatter(original_x_coordinates, original_y_coordinates, color='green', label='Original Position')
+
+            # Quiver plot for average displacements
+            plt.quiver(original_x_coordinates, original_y_coordinates,
+                       avg_displacement_x, avg_displacement_y,
+                       angles='xy', scale_units='xy', scale=1, color='blue')
+
+            plt.title("Visualization of Average Movement for Center Plane Nodes")
+            plt.xlabel("X Coordinate")
+            plt.ylabel("Y Coordinate")
+            plt.legend()
+            plt.grid(True)
+            plt.axis('equal')  # This ensures that the lengths of the arrows are proportional
+            plt.savefig("movement_center.png")
+
+        # Call the plot function
+        plot_movement(coordinates_on_center_plane, displacement_x_center, displacement_y_center)
 
         # # Assuming time_values are extracted from your data
         # time_values = result[ExternalInput.TIME.value]
