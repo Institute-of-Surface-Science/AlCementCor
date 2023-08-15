@@ -113,6 +113,28 @@ class ConstantStrainRate(fe.UserExpression):
         return (2,)
 
 
+class SquareStrainRate(fe.UserExpression):
+    def __init__(self, strain_rate, start, end, minimum_displacement=0.0, **kwargs):
+        super().__init__(**kwargs)
+        self.strain_rateX = strain_rate[0]
+        self.strain_rateY = strain_rate[1]
+        self.start = start
+        self.end = end
+        self.time = 1e-16
+        self.min_disp = minimum_displacement
+
+    def eval(self, values, x):
+        # linearly increasing displacement in the x-direction with respect to time and x-coordinate
+        values[0] = self.time * self.strain_rateX * ((1.0-self.min_disp) * (1.0 - (2.0/(self.end - self.start) * (x[1]-self.start)-1)**2) + self.min_disp)
+        values[1] = self.time * self.strain_rateY * (1.0 - (2.0/(self.end - self.start) * (x[0]-self.start)-1)**2)
+
+    def update_time(self, time_step):
+        self.time = time_step
+
+    def value_shape(self):
+        return (2,)
+
+
 class LinearDisplacementX(fe.UserExpression):
     def __init__(self, strain_rate, bnd_length, **kwargs):
         super().__init__(**kwargs)

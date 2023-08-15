@@ -39,8 +39,8 @@ def setup_boundary_conditions(V, two_layers, C_strain_rate, l_x, l_y):
     # Define the boundary conditions
     # bnd_length = l_x
     #displacement_func = LinearDisplacementX((-C_strain_rate, 0.0), bnd_length)
-    displacement_func = ConstantStrainRate((-C_strain_rate, 0.0))
-    bottom_condition = FunctionDisplacementBoundaryCondition(V, is_bottom_boundary, displacement_func)
+    #displacement_func = ConstantStrainRate((-C_strain_rate, 0.0))
+    #bottom_condition = FunctionDisplacementBoundaryCondition(V, is_bottom_boundary, displacement_func)
     #bottom_condition = NoDisplacementBoundaryCondition(V, is_bottom_boundary)
     # if two_layers:
     #     bottom_condition = ConstantStrainRateBoundaryCondition(V, is_bottom_boundary, -C_strain_rate)
@@ -50,13 +50,14 @@ def setup_boundary_conditions(V, two_layers, C_strain_rate, l_x, l_y):
     # top_condition = ConstantStrainRateBoundaryCondition(V, is_top_boundary, C_strain_rate)
     # bnd_length = 100.0
     # displacement_func = LinearDisplacementX(-C_strain_rate, bnd_length)
-    displacement_func = ConstantStrainRate((-C_strain_rate, 0.0))
-    top_condition = FunctionDisplacementBoundaryCondition(V, is_top_boundary, displacement_func)
+    #displacement_func = ConstantStrainRate((-C_strain_rate, 0.0))
+    #top_condition = FunctionDisplacementBoundaryCondition(V, is_top_boundary, displacement_func)
     # top_condition = NoDisplacementBoundaryCondition(V, is_top_boundary)
 
     # bnd_length = l_y
     #displacement_func = SinglePointDisplacement((0.0, 6.0), (-C_strain_rate, 0.0))
-    displacement_func = ConstantStrainRate((-C_strain_rate, 0.0))
+    # displacement_func = ConstantStrainRate((-C_strain_rate, 0.0))
+    displacement_func = SquareStrainRate((-C_strain_rate, 0.0), 0.0, l_y)
     left_condition = FunctionDisplacementBoundaryCondition(V, is_left_boundary, displacement_func)
 
     #displacement_func = SinglePointDisplacement((4.2, 6.0), (-C_strain_rate, 0.0))
@@ -64,7 +65,7 @@ def setup_boundary_conditions(V, two_layers, C_strain_rate, l_x, l_y):
     #right_condition = FunctionDisplacementBoundaryCondition(V, is_right_boundary, displacement_func)
 
     # Create the conditions list
-    conditions = [bottom_condition, top_condition, left_condition]
+    conditions = [left_condition]
 
     # Generate the Dirichlet boundary conditions
     bc = [condition.get_condition() for condition in conditions]
@@ -541,7 +542,7 @@ def main() -> None:
     mesh, l_x, l_y = setup_geometry(config)
 
     # Set up numerical parameters
-    strain_rate = fe.Constant(0.0000001)  # 0.01/s
+    strain_rate = fe.Constant(0.000001)  # 0.01/s
 
     # Set up numerical variables and functions
     (V, u, du, Du, W, sig, sig_old, n_elas, W0, beta, p, sig_hyd, local_initial_stress,
