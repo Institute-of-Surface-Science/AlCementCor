@@ -15,7 +15,7 @@ from AlCementCor.info import *
 from AlCementCor.input_file import *
 from AlCementCor.material_properties import *
 from AlCementCor.interpolate import *
-from AlCementCor.postproc import plot_strain_displacement
+from AlCementCor.postproc import plot_strain_displacement, plot_movement, plot_displacement
 from AlCementCor.time_controller import PITimeController
 
 fe.parameters["form_compiler"]["representation"] = 'quadrature'
@@ -38,10 +38,10 @@ def setup_boundary_conditions(V, two_layers, C_strain_rate, l_x, l_y):
 
     # Define the boundary conditions
     # bnd_length = l_x
-    #displacement_func = LinearDisplacementX((-C_strain_rate, 0.0), bnd_length)
-    #displacement_func = ConstantStrainRate((-C_strain_rate, 0.0))
-    #bottom_condition = FunctionDisplacementBoundaryCondition(V, is_bottom_boundary, displacement_func)
-    #bottom_condition = NoDisplacementBoundaryCondition(V, is_bottom_boundary)
+    # displacement_func = LinearDisplacementX((-C_strain_rate, 0.0), bnd_length)
+    # displacement_func = ConstantStrainRate((-C_strain_rate, 0.0))
+    # bottom_condition = FunctionDisplacementBoundaryCondition(V, is_bottom_boundary, displacement_func)
+    # bottom_condition = NoDisplacementBoundaryCondition(V, is_bottom_boundary)
     # if two_layers:
     #     bottom_condition = ConstantStrainRateBoundaryCondition(V, is_bottom_boundary, -C_strain_rate)
     # else:
@@ -50,19 +50,19 @@ def setup_boundary_conditions(V, two_layers, C_strain_rate, l_x, l_y):
     # top_condition = ConstantStrainRateBoundaryCondition(V, is_top_boundary, C_strain_rate)
     # bnd_length = 100.0
     # displacement_func = LinearDisplacementX(-C_strain_rate, bnd_length)
-    #displacement_func = ConstantStrainRate((-C_strain_rate, 0.0))
-    #top_condition = FunctionDisplacementBoundaryCondition(V, is_top_boundary, displacement_func)
+    # displacement_func = ConstantStrainRate((-C_strain_rate, 0.0))
+    # top_condition = FunctionDisplacementBoundaryCondition(V, is_top_boundary, displacement_func)
     # top_condition = NoDisplacementBoundaryCondition(V, is_top_boundary)
 
     # bnd_length = l_y
-    #displacement_func = SinglePointDisplacement((0.0, 6.0), (-C_strain_rate, 0.0))
+    # displacement_func = SinglePointDisplacement((0.0, 6.0), (-C_strain_rate, 0.0))
     # displacement_func = ConstantStrainRate((-C_strain_rate, 0.0))
     displacement_func = SquareStrainRate((-C_strain_rate, 0.0), 0.0, l_y)
     left_condition = FunctionDisplacementBoundaryCondition(V, is_left_boundary, displacement_func)
 
-    #displacement_func = SinglePointDisplacement((4.2, 6.0), (-C_strain_rate, 0.0))
-    #displacement_func = ConstantStrainRate((-C_strain_rate, 0.0))
-    #right_condition = FunctionDisplacementBoundaryCondition(V, is_right_boundary, displacement_func)
+    # displacement_func = SinglePointDisplacement((4.2, 6.0), (-C_strain_rate, 0.0))
+    # displacement_func = ConstantStrainRate((-C_strain_rate, 0.0))
+    # right_condition = FunctionDisplacementBoundaryCondition(V, is_right_boundary, displacement_func)
 
     # Create the conditions list
     conditions = [left_condition]
@@ -118,8 +118,6 @@ def load_simulation_config(file_name):
             combined_points_t = outside_points_t + inside_points_t
             coordinates_on_center_plane.append(combined_points_t)
 
-
-
         displacement_x = result[ExternalInput.DISPLACEMENTX.value]
         displacement_y = result[ExternalInput.DISPLACEMENTY.value]
         displacement_z = result[ExternalInput.DISPLACEMENTZ.value]
@@ -132,61 +130,8 @@ def load_simulation_config(file_name):
 
         print("displacement_x_center", displacement_x_center)
 
-        def plot_displacement(displacement_x_center, displacement_y_center):
-            timesteps = range(len(displacement_x_center[0]))  # assuming all nodes have the same number of timesteps
-
-            num_nodes = len(displacement_x_center)
-
-            plt.figure(figsize=(15, num_nodes * 5))  # adjusting the figure size based on number of nodes
-
-            for i in range(num_nodes):
-                # Plotting displacement_x_center for node i
-                plt.subplot(num_nodes, 2, 2 * i + 1)
-                plt.plot(timesteps, displacement_x_center[i], marker='o', linestyle='-', color='blue')
-                plt.title(f"Displacement X Center for Node {i} vs Time")
-                plt.xlabel("Time")
-                plt.ylabel(f"Displacement X for Node {i}")
-
-                # Plotting displacement_y_center for node i
-                plt.subplot(num_nodes, 2, 2 * i + 2)
-                plt.plot(timesteps, displacement_y_center[i], marker='o', linestyle='-', color='red')
-                plt.title(f"Displacement Y Center for Node {i} vs Time")
-                plt.xlabel("Time")
-                plt.ylabel(f"Displacement Y for Node {i}")
-
-            plt.tight_layout()
-            plt.savefig("disp_center.png")
-
         # Call the plot function
         plot_displacement(displacement_x_center, displacement_y_center)
-
-        def plot_movement(coordinates_on_center_plane, displacement_x_center, displacement_y_center):
-            # Assuming the structure of coordinates_on_center_plane is [timestep][node_id][coordinate]
-            # Extracting original x and y coordinates from the first timestep
-            original_x_coordinates = [point[1] for point in coordinates_on_center_plane[0]]
-            original_y_coordinates = [point[2] for point in coordinates_on_center_plane[0]]
-
-            # Compute the average displacements over all time steps for each node
-            avg_displacement_x = np.mean(displacement_x_center, axis=1)
-            avg_displacement_y = np.mean(displacement_y_center, axis=1)
-
-            plt.figure(figsize=(10, 10))
-
-            # Plot original points
-            plt.scatter(original_x_coordinates, original_y_coordinates, color='green', label='Original Position')
-
-            # Quiver plot for average displacements
-            plt.quiver(original_x_coordinates, original_y_coordinates,
-                       avg_displacement_x, avg_displacement_y,
-                       angles='xy', scale_units='xy', scale=1, color='blue')
-
-            plt.title("Visualization of Average Movement for Center Plane Nodes")
-            plt.xlabel("X Coordinate")
-            plt.ylabel("Y Coordinate")
-            plt.legend()
-            plt.grid(True)
-            plt.axis('equal')  # This ensures that the lengths of the arrows are proportional
-            plt.savefig("movement_center.png")
 
         # Call the plot function
         plot_movement(coordinates_on_center_plane, displacement_x_center, displacement_y_center)
@@ -204,7 +149,6 @@ def load_simulation_config(file_name):
         # disp_at_query_time_and_point_1, disp_at_query_time_and_point_2 = in_plane_interpolator.get_displacement_at_point(
         #     query_time, query_point)
 
-
     substrate_properties = MaterialProperties('material_properties.json', simulation_config.material)
     if simulation_config.use_two_material_layers:
         layer_properties = MaterialProperties('material_properties.json', simulation_config.layer_material)
@@ -216,8 +160,8 @@ def setup_geometry(simulation_config):
     l_layer_x = simulation_config.layer_1_thickness if simulation_config.use_two_material_layers else 0.0
     l_layer_y = 0.0
     l_x = simulation_config.width + l_layer_x
-    #todo: hardcode
-    #multiplier_y = 3.0
+    # todo: hardcode
+    # multiplier_y = 3.0
     # l_y = multiplier_y * simulation_config.length + l_layer_y
     l_y = simulation_config.length + l_layer_y
     mesh = fe.RectangleMesh(fe.Point(0.0, 0.0), fe.Point(l_x, l_y), simulation_config.mesh_resolution_x,
@@ -245,7 +189,9 @@ def setup_numerical_stuff(simulation_config, mesh):
                                            ["Avg. Hydrostatic stress", "test", "test2"]]
     return V, u, du, Du, W, sig, sig_old, n_elas, W0, beta, p, sig_hyd, sig_0_local, mu_local, lmbda_local, C_linear_h_local, P0, sig_hyd_avg, sig_0_test, lmbda_test, DG, deg_stress
 
-def plot(iteration, u, sig_eq_p, title="Von-Mises Stress and Deformation", cbar_label="Von-Mises Stress", cmap="viridis", quiver_steps=5):
+
+def plot(iteration, u, sig_eq_p, title="Von-Mises Stress and Deformation", cbar_label="Von-Mises Stress",
+         cmap="viridis", quiver_steps=5):
     """
     Function to plot and save the Von Mises stress distribution
 
@@ -293,7 +239,7 @@ def plot(iteration, u, sig_eq_p, title="Von-Mises Stress and Deformation", cbar_
             U[j, i], V[j, i] = u(X[i], Y[j])
 
     # Reduce the arrow head size
-    #Q = plt.quiver(X, Y, U, V, color='r', headwidth=4, headlength=4, headaxislength=4, scale_units='width', scale=10)
+    # Q = plt.quiver(X, Y, U, V, color='r', headwidth=4, headlength=4, headaxislength=4, scale_units='width', scale=10)
     Q = plt.quiver(X, Y, U, V, color='r', pivot='mid')
 
     # Annotate the quivers
@@ -306,7 +252,6 @@ def plot(iteration, u, sig_eq_p, title="Von-Mises Stress and Deformation", cbar_
 
     # Add a single quiver for the legend
     # qk = plt.quiverkey(Q, 0.9, 0.1, 1, r'$1 \, m$', labelpos='E', coordinates='figure')
-
 
     # Extend the x and y limits
     x_range = np.max(x) - np.min(x)
