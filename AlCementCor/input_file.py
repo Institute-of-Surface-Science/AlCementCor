@@ -78,7 +78,7 @@ class ExternalInput(Enum):
     STRAINZ = "LE33"
 
 
-def process_input_tensors(filename, plot=False):
+def process_abaqus_input_file(filename, plot=False):
     """
     Load a JSON file containing node information, calculate the thickness and length of the area,
     and optionally plot the nodes in 3D.

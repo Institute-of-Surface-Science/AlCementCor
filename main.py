@@ -111,26 +111,26 @@ def load_simulation_config(file_name):
     """Loads and initializes a SimulationConfig object from a JSON configuration file."""
     simulation_config = SimulationConfig(file_name)
     if simulation_config.field_input_file:
-        result = process_input_tensors(simulation_config.field_input_file, plot=True)
-        simulation_config.width = result[ExternalInput.WIDTH.value]
-        simulation_config.length = result[ExternalInput.LENGTH.value]
+        input_file = process_abaqus_input_file(simulation_config.field_input_file, plot=True)
+        simulation_config.width = input_file[ExternalInput.WIDTH.value]
+        simulation_config.length = input_file[ExternalInput.LENGTH.value]
 
-        center_yz_points_outside, center_yz_points_inside = determine_center_plane(result)
+        center_yz_points_outside, center_yz_points_inside = determine_center_plane(input_file)
 
         coordinates_on_center_plane = []
         for outside_points_t, inside_points_t in zip(center_yz_points_outside, center_yz_points_inside):
             combined_points_t = outside_points_t + inside_points_t
             coordinates_on_center_plane.append(combined_points_t)
 
-        displacement_x = result[ExternalInput.DISPLACEMENTX.value]
-        displacement_y = result[ExternalInput.DISPLACEMENTY.value]
-        displacement_z = result[ExternalInput.DISPLACEMENTZ.value]
+        displacement_x = input_file[ExternalInput.DISPLACEMENTX.value]
+        displacement_y = input_file[ExternalInput.DISPLACEMENTY.value]
+        displacement_z = input_file[ExternalInput.DISPLACEMENTZ.value]
 
-        plot_strain_displacement(result)
+        plot_strain_displacement(input_file)
 
-        x_coordinates = result[ExternalInput.X.value]
-        y_coordinates = result[ExternalInput.Y.value]
-        z_coordinates = result[ExternalInput.Z.value]
+        x_coordinates = input_file[ExternalInput.X.value]
+        y_coordinates = input_file[ExternalInput.Y.value]
+        z_coordinates = input_file[ExternalInput.Z.value]
 
         displacement_x_center, displacement_y_center = interpolate_displacements(
             coordinates_on_center_plane, x_coordinates, y_coordinates, z_coordinates, displacement_x, displacement_y,
