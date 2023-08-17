@@ -75,6 +75,37 @@ def setup_boundary_conditions(V, two_layers, C_strain_rate, l_x, l_y):
 
     return bc, bc_iter, conditions
 
+def determine_center_plane(result):
+    x_coordinates = result[ExternalInput.X.value]
+    y_coordinates = result[ExternalInput.Y.value]
+    z_coordinates = result[ExternalInput.Z.value]
+
+    # Extract the outside and inside point indices
+    outside_indices = result[ExternalInput.OUTSIDE_P.value]
+    inside_indices = result[ExternalInput.INSIDE_P.value]
+
+    def get_center_yz_points(indices, x_coordinates, y_coordinates, z_coordinates, tolerance=1e-3):
+        center_yz_points_per_timestep = []
+        for t in range(x_coordinates.shape[1]):
+            x_values_t = x_coordinates[indices, t]
+            y_values_t = y_coordinates[indices, t]
+            z_values_t = z_coordinates[indices, t]
+            center_x_t = np.median(x_values_t)
+            center_yz_points_t = [(x, y, z) for x, y, z in zip(x_values_t, y_values_t, z_values_t) if
+                                  abs(x - center_x_t) < tolerance]
+            if len(center_yz_points_t) != 3:
+                print("missing points")
+                exit(-1)
+            center_yz_points_per_timestep.append(center_yz_points_t)
+        return center_yz_points_per_timestep
+
+    center_yz_points_outside = get_center_yz_points(outside_indices, np.array(x_coordinates),
+                                                    np.array(y_coordinates), np.array(z_coordinates))
+    center_yz_points_inside = get_center_yz_points(inside_indices, np.array(x_coordinates), np.array(y_coordinates),
+                                                   np.array(z_coordinates))
+
+    return center_yz_points_outside, center_yz_points_inside
+
 
 def load_simulation_config(file_name):
     """Loads and initializes a SimulationConfig object from a JSON configuration file."""
@@ -84,34 +115,7 @@ def load_simulation_config(file_name):
         simulation_config.width = result[ExternalInput.WIDTH.value]
         simulation_config.length = result[ExternalInput.LENGTH.value]
 
-        # determine the y-z plane
-        x_coordinates = result[ExternalInput.X.value]
-        y_coordinates = result[ExternalInput.Y.value]
-        z_coordinates = result[ExternalInput.Z.value]
-
-        # Extract the outside and inside point indices
-        outside_indices = result[ExternalInput.OUTSIDE_P.value]
-        inside_indices = result[ExternalInput.INSIDE_P.value]
-
-        def get_center_yz_points(indices, x_coordinates, y_coordinates, z_coordinates, tolerance=1e-3):
-            center_yz_points_per_timestep = []
-            for t in range(x_coordinates.shape[1]):
-                x_values_t = x_coordinates[indices, t]
-                y_values_t = y_coordinates[indices, t]
-                z_values_t = z_coordinates[indices, t]
-                center_x_t = np.median(x_values_t)
-                center_yz_points_t = [(x, y, z) for x, y, z in zip(x_values_t, y_values_t, z_values_t) if
-                                      abs(x - center_x_t) < tolerance]
-                if len(center_yz_points_t) != 3:
-                    print("missing points")
-                    exit(-1)
-                center_yz_points_per_timestep.append(center_yz_points_t)
-            return center_yz_points_per_timestep
-
-        center_yz_points_outside = get_center_yz_points(outside_indices, np.array(x_coordinates),
-                                                        np.array(y_coordinates), np.array(z_coordinates))
-        center_yz_points_inside = get_center_yz_points(inside_indices, np.array(x_coordinates), np.array(y_coordinates),
-                                                       np.array(z_coordinates))
+        center_yz_points_outside, center_yz_points_inside = determine_center_plane(result)
 
         coordinates_on_center_plane = []
         for outside_points_t, inside_points_t in zip(center_yz_points_outside, center_yz_points_inside):
@@ -124,11 +128,13 @@ def load_simulation_config(file_name):
 
         plot_strain_displacement(result)
 
+        x_coordinates = result[ExternalInput.X.value]
+        y_coordinates = result[ExternalInput.Y.value]
+        z_coordinates = result[ExternalInput.Z.value]
+
         displacement_x_center, displacement_y_center = interpolate_displacements(
             coordinates_on_center_plane, x_coordinates, y_coordinates, z_coordinates, displacement_x, displacement_y,
             displacement_z)
-
-        print("displacement_x_center", displacement_x_center)
 
         # Call the plot function
         plot_displacement(displacement_x_center, displacement_y_center)

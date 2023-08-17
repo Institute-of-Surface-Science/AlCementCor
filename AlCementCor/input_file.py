@@ -312,3 +312,6 @@ def process_input_tensors(filename, plot=False):
     })
 
     return loaded_vars
+
+def unpack_coordinates(input_file):
+    return input_file[ExternalInput.X.value], input_file[ExternalInput.Y.value], input_file[ExternalInput.Z.value]
