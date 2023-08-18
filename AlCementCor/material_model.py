@@ -5,11 +5,15 @@ import numpy as np
 from AlCementCor.fenics_helpers import as_3D_tensor
 
 
-def eps(displacement):
+def eps(displacement: fe.Function):
     """
-    Calculate the strain tensor (epsilon)
-    :param displacement: The displacement tensor
-    :return: strain tensor
+    Calculate the strain tensor (epsilon).
+
+    Parameters:
+    - displacement: The displacement tensor
+
+    Returns:
+    - strain tensor
     """
     e = fe.sym(fe.nabla_grad(displacement))
     return fe.as_tensor([[e[0, 0], e[0, 1], 0],
@@ -17,30 +21,45 @@ def eps(displacement):
                          [0, 0, 0]])
 
 
-def sigma(strain, lmbda_local_DG, mu_local_DG):
+def sigma(strain, lmbda_local_DG: fe.Function, mu_local_DG: fe.Function):
     """
-    Calculate the Cauchy Stress Tensor
-    :param strain: Strain (epsilon)
-    :return: Cauchy Stress Tensor
+    Calculate the Cauchy Stress Tensor.
+
+    Parameters:
+    - strain: Strain tensor
+
+    Returns:
+    - Cauchy Stress Tensor
     """
     return lmbda_local_DG * fe.tr(strain) * fe.Identity(3) + 2 * mu_local_DG * strain
 
 
-def sigma_tang(e, n_elas, mu_local_DG, C_linear_h_local_DG, beta, lmbda_local_DG):
+def sigma_tang(e, n_elas: fe.Function, mu_local_DG: fe.Function,
+               C_linear_h_local_DG: fe.Function, beta: fe.Function,
+               lmbda_local_DG: fe.Function):
     N_elas = as_3D_tensor(n_elas)
     return sigma(e, lmbda_local_DG, mu_local_DG) - 3 * mu_local_DG * (
             3 * mu_local_DG / (3 * mu_local_DG + C_linear_h_local_DG) - beta) * fe.inner(
         N_elas, e) * N_elas - 2 * mu_local_DG * beta * fe.dev(e)
 
 
-# Von-Mises Stress
-def sigma_v(strain, lmbda_local_DG, mu_local_DG):
+def sigma_v(strain, lmbda_local_DG: fe.Function, mu_local_DG: fe.Function) -> fe.Function:
+    """
+    Calculate the Von-Mises Stress.
+
+    Parameters:
+    - strain: Strain tensor
+
+    Returns:
+    - Von-Mises Stress
+    """
     s = fe.dev(sigma(strain, lmbda_local_DG, mu_local_DG))
     return fe.sqrt(3 / 2. * fe.inner(s, s))
 
 
 class LinearElastoPlasticModel:
-    def __init__(self, simulation_config: 'SimulationConfig', mesh: 'MeshType', substrate_props, layer_props):
+    def __init__(self, simulation_config: 'SimulationConfig', mesh: 'MeshType',
+                 substrate_props: 'MaterialProps', layer_props: 'MaterialProps') -> None:
         """Initialize the model with given configurations and mesh."""
         self._simulation_config = simulation_config
         self._mesh = mesh
@@ -105,7 +124,6 @@ class LinearElastoPlasticModel:
         self._setup_local_properties()
         self._setup_newton_equations()
 
-
     def _setup_function_spaces(self):
         """Set up the function spaces required for the simulation."""
         self.deg_stress = self._simulation_config.finite_element_degree_stress
@@ -146,17 +164,18 @@ class LinearElastoPlasticModel:
         self._assign_local_values(self.substrate_props.shear_modulus, self.layer_props.shear_modulus, self.mu_local_DG)
 
         self.lmbda_local_DG = fe.Function(self.DG)
-        self._assign_local_values(self.substrate_props.first_lame_parameter, self.layer_props.first_lame_parameter, self.lmbda_local_DG)
+        self._assign_local_values(self.substrate_props.first_lame_parameter, self.layer_props.first_lame_parameter,
+                                  self.lmbda_local_DG)
 
         self.local_linear_hardening_DG = fe.Function(self.DG)
-        self._assign_local_values(self.substrate_props.linear_isotropic_hardening, self.layer_props.linear_isotropic_hardening,
-                            self.local_linear_hardening_DG)
+        self._assign_local_values(self.substrate_props.linear_isotropic_hardening,
+                                  self.layer_props.linear_isotropic_hardening,
+                                  self.local_linear_hardening_DG)
 
-    def _assign_local_values(self, values, outer_values, local_DG):
+    def _assign_local_values(self, values: float, outer_values: float, local_DG: fe.Function) -> None:
         """Assign values based on the specified condition."""
         dofmap = self.DG.tabulate_dof_coordinates()[:]
-        vec = np.zeros(dofmap.shape[0])
-        vec[:] = values
+        vec = np.full(dofmap.shape[0], values)
         vec[dofmap[:, 0] > self._simulation_config.width] = outer_values
         local_DG.vector()[:] = vec
 
@@ -174,5 +193,3 @@ class LinearElastoPlasticModel:
     @property
     def simulation_config(self) -> 'SimulationConfig':
         return self._simulation_config
-
-
