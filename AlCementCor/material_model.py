@@ -1,3 +1,4 @@
+import ufl
 import fenics as fe
 
 
@@ -41,5 +42,9 @@ class LinearElastoPlasticModel:
             fe.Function(self.W0, name=n) for n in func_names]
         self.sig_hyd_avg, self.sig_0_test, self.lmbda_test = [fe.Function(self.P0, name=n) for n in
                                                               ["Avg. Hydrostatic stress", "test", "test2"]]
+        self.metadata = {"quadrature_degree": self.deg_stress, "quadrature_scheme": "default"}
+        self.dxm = ufl.dx(metadata=self.metadata)
+        self.v = fe.TrialFunction(self.V)
+        self.u_ = fe.TestFunction(self.V)
 
 

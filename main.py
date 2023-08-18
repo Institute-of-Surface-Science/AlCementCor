@@ -23,7 +23,7 @@ fe.parameters["form_compiler"]["representation"] = 'quadrature'
 warnings.simplefilter("once", QuadratureRepresentationDeprecationWarning)
 
 
-def setup_displacement_bnd(V, two_layers, C_strain_rate, l_x, l_y):
+def setup_displacement_bnd(model, two_layers, C_strain_rate, l_x, l_y):
     # Define boundary location conditions
     def is_bottom_boundary(x, on_boundary):
         return on_boundary and fe.near(x[1], 0.0)
@@ -59,7 +59,7 @@ def setup_displacement_bnd(V, two_layers, C_strain_rate, l_x, l_y):
     # displacement_func = SinglePointDisplacement((0.0, 6.0), (-C_strain_rate, 0.0))
     # displacement_func = ConstantStrainRate((-C_strain_rate, 0.0))
     displacement_func = SquareStrainRate((-C_strain_rate, 0.0), 0.0, l_y)
-    left_condition = FunctionDisplacementBoundaryCondition(V, is_left_boundary, displacement_func)
+    left_condition = FunctionDisplacementBoundaryCondition(model.V, is_left_boundary, displacement_func)
 
     # displacement_func = SinglePointDisplacement((4.2, 6.0), (-C_strain_rate, 0.0))
     # displacement_func = ConstantStrainRate((-C_strain_rate, 0.0))
@@ -541,17 +541,10 @@ def main() -> None:
 
     model = LinearElastoPlasticModel(config, mesh)
 
-    V = model.V
-    DG = model.DG
-
     # Set up boundary conditions
-    bc, bc_iter, conditions = setup_displacement_bnd(V, config.use_two_material_layers, strain_rate, l_x, l_y)
+    bc, bc_iter, conditions = setup_displacement_bnd(model, config.use_two_material_layers, strain_rate, l_x, l_y)
 
-    metadata = {"quadrature_degree": model.deg_stress, "quadrature_scheme": "default"}
-    dxm = ufl.dx(metadata=metadata)
-
-    v = fe.TrialFunction(V)
-    u_ = fe.TestFunction(V)
+    DG = model.DG
 
     # calculate local mu
     mu_local_DG = fe.Function(DG)
@@ -565,9 +558,9 @@ def main() -> None:
     assign_local_values(substrate_props.linear_isotropic_hardening, layer_props.linear_isotropic_hardening,
                         local_linear_hardening_DG, DG, config)
 
-    newton_lhs = fe.inner(eps(v), sigma_tang(eps(u_), model.n_elas, mu_local_DG, local_linear_hardening_DG, model.beta,
-                                             lmbda_local_DG)) * dxm
-    newton_rhs = -fe.inner(eps(u_), as_3D_tensor(model.sig)) * dxm
+    newton_lhs = fe.inner(eps(model.v), sigma_tang(eps(model.u_), model.n_elas, mu_local_DG, local_linear_hardening_DG, model.beta,
+                                             lmbda_local_DG)) * model.dxm
+    newton_rhs = -fe.inner(eps(model.u_), as_3D_tensor(model.sig)) * model.dxm
 
     results_file = fe.XDMFFile("plasticity_results.xdmf")
     results_file.parameters["flush_output"] = True
@@ -606,14 +599,14 @@ def main() -> None:
 
         newton_res_norm, plastic_strain_update = run_newton_raphson(
             A, Res, newton_lhs, newton_rhs, bc_iter, model.du, model.Du, model.sig_old, model.p, local_initial_stress, local_linear_hardening,
-            local_shear_modulus, lmbda_local_DG, mu_local_DG, model.sig, model.n_elas, model.beta, model.sig_hyd, model.W, model.W0, dxm, max_iters,
+            local_shear_modulus, lmbda_local_DG, mu_local_DG, model.sig, model.n_elas, model.beta, model.sig_hyd, model.W, model.W0, model.dxm, max_iters,
             tolerance)
 
         if newton_res_norm > 1 or np.isnan(newton_res_norm):
             raise ValueError("ERROR: Calculation diverged!")
 
         update_and_store_results(
-            iteration, model.Du, plastic_strain_update, model.sig, model.sig_old, model.sig_hyd, model.sig_hyd_avg, model.p, model.W0, dxm, P0, model.u, l_x, l_y, time, results_file, max_stress_over_time, mean_stress_over_time, displacement_list
+            iteration, model.Du, plastic_strain_update, model.sig, model.sig_old, model.sig_hyd, model.sig_hyd_avg, model.p, model.W0, model.dxm, P0, model.u, l_x, l_y, time, results_file, max_stress_over_time, mean_stress_over_time, displacement_list
         )
 
         displacement_over_time += [(np.abs(model.u(l_x / 2, l_y)[1]) / l_y, time)]
