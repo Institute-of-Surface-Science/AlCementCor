@@ -1,15 +1,22 @@
 import ufl
 import fenics as fe
-
+import numpy as np
 
 class LinearElastoPlasticModel:
-    def __init__(self, simulation_config: 'SimulationConfig', mesh: 'MeshType'):
+    def __init__(self, simulation_config: 'SimulationConfig', mesh: 'MeshType', substrate_props, layer_props):
         """Initialize the model with given configurations and mesh."""
         self._simulation_config = simulation_config
         self._mesh = mesh
 
+        # todo: move to config file
+        self.strain_rate = fe.Constant(0.000001)
+
+        # Material properties
+        self.substrate_props = substrate_props
+        self.layer_props = layer_props
+
         # Function spaces
-        self.deg_stress: int = None
+        self.deg_stress: int = -1
         self.V = None
         self.DG = None
         self.W = None
@@ -25,6 +32,11 @@ class LinearElastoPlasticModel:
         self.sig = None
         self.sig_old = None
         self.n_elas = None
+
+        # Local properties
+        self.mu_local_DG = None
+        self.lmbda_local_DG = None
+        self.local_linear_hardening_DG = None
 
         # Other functions and parameters
         self.beta = None
@@ -49,6 +61,8 @@ class LinearElastoPlasticModel:
         self._setup_displacement_functions()
         self._setup_stress_functions()
         self._setup_other_functions()
+        self._setup_local_properties()
+
 
     def _setup_function_spaces(self):
         """Set up the function spaces required for the simulation."""
@@ -83,6 +97,26 @@ class LinearElastoPlasticModel:
         self.dxm = ufl.dx(metadata=self.metadata)
         self.v = fe.TrialFunction(self.V)
         self.u_ = fe.TestFunction(self.V)
+
+    def _setup_local_properties(self):
+        """Setup local properties of the model."""
+        self.mu_local_DG = fe.Function(self.DG)
+        self._assign_local_values(self.substrate_props.shear_modulus, self.layer_props.shear_modulus, self.mu_local_DG)
+
+        self.lmbda_local_DG = fe.Function(self.DG)
+        self._assign_local_values(self.substrate_props.first_lame_parameter, self.layer_props.first_lame_parameter, self.lmbda_local_DG)
+
+        self.local_linear_hardening_DG = fe.Function(self.DG)
+        self._assign_local_values(self.substrate_props.linear_isotropic_hardening, self.layer_props.linear_isotropic_hardening,
+                            self.local_linear_hardening_DG)
+
+    def _assign_local_values(self, values, outer_values, local_DG):
+        """Assign values based on the specified condition."""
+        dofmap = self.DG.tabulate_dof_coordinates()[:]
+        vec = np.zeros(dofmap.shape[0])
+        vec[:] = values
+        vec[dofmap[:, 0] > self._simulation_config.width] = outer_values
+        local_DG.vector()[:] = vec
 
     @property
     def mesh(self) -> 'MeshType':
