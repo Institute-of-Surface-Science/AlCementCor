@@ -13,6 +13,7 @@ from AlCementCor.bnd import *
 from AlCementCor.config import *
 from AlCementCor.info import *
 from AlCementCor.input_file import *
+from AlCementCor.material_model import LinearElastoPlasticModel
 from AlCementCor.material_properties import *
 from AlCementCor.interpolate import *
 from AlCementCor.postproc import plot_strain_displacement, plot_movement, plot_displacement
@@ -173,27 +174,6 @@ def setup_geometry(simulation_config):
     mesh = fe.RectangleMesh(fe.Point(0.0, 0.0), fe.Point(l_x, l_y), simulation_config.mesh_resolution_x,
                             simulation_config.mesh_resolution_y)
     return mesh, l_x, l_y
-
-
-def setup_numerical_stuff(simulation_config, mesh):
-    """Sets up the numerical parameters for the simulation, including the function spaces."""
-    deg_stress = simulation_config.finite_element_degree_stress
-    V = fe.VectorFunctionSpace(mesh, "CG", simulation_config.finite_element_degree_u)
-    u, du, Du = [fe.Function(V, name=n) for n in ["Total displacement", "Iteration correction", "Current increment"]]
-    DG = fe.FunctionSpace(mesh, "DG", 0)
-    We = fe.VectorElement("Quadrature", mesh.ufl_cell(), degree=deg_stress, dim=4, quad_scheme='default')
-    W = fe.FunctionSpace(mesh, We)
-    sig, sig_old, n_elas = [fe.Function(W) for _ in range(3)]
-    func_names = ["Beta", "Cumulative plastic strain", "Hydrostatic stress", "local sig0",
-                  "local mu", "local lmbda", "local hardening factor"]
-    W0 = fe.FunctionSpace(mesh,
-                          fe.FiniteElement("Quadrature", mesh.ufl_cell(), degree=deg_stress, quad_scheme='default'))
-    beta, p, sig_hyd, sig_0_local, mu_local, lmbda_local, C_linear_h_local = [fe.Function(W0, name=n) for n in
-                                                                              func_names]
-    P0 = fe.FunctionSpace(mesh, "DG", 0)
-    sig_hyd_avg, sig_0_test, lmbda_test = [fe.Function(P0, name=n) for n in
-                                           ["Avg. Hydrostatic stress", "test", "test2"]]
-    return V, u, du, Du, W, sig, sig_old, n_elas, W0, beta, p, sig_hyd, sig_0_local, mu_local, lmbda_local, C_linear_h_local, P0, sig_hyd_avg, sig_0_test, lmbda_test, DG, deg_stress
 
 
 def plot(iteration, u, sig_eq_p, title="Von-Mises Stress and Deformation", cbar_label="Von-Mises Stress",
@@ -559,15 +539,15 @@ def main() -> None:
     # todo: move to config file
     strain_rate = fe.Constant(0.000001)  # 0.01/s
 
-    # Set up numerical variables and functions
-    (V, u, du, Du, W, sig, sig_old, n_elas, W0, beta, p, sig_hyd, local_initial_stress,
-     local_shear_modulus, lmbda_local, local_linear_hardening, P0, sig_hyd_avg,
-     sig_0_test, lmbda_test, DG, deg_stress) = setup_numerical_stuff(config, mesh)
+    model = LinearElastoPlasticModel(config, mesh)
+
+    V = model.V
+    DG = model.DG
 
     # Set up boundary conditions
     bc, bc_iter, conditions = setup_displacement_bnd(V, config.use_two_material_layers, strain_rate, l_x, l_y)
 
-    metadata = {"quadrature_degree": deg_stress, "quadrature_scheme": "default"}
+    metadata = {"quadrature_degree": model.deg_stress, "quadrature_scheme": "default"}
     dxm = ufl.dx(metadata=metadata)
 
     v = fe.TrialFunction(V)
@@ -585,9 +565,9 @@ def main() -> None:
     assign_local_values(substrate_props.linear_isotropic_hardening, layer_props.linear_isotropic_hardening,
                         local_linear_hardening_DG, DG, config)
 
-    newton_lhs = fe.inner(eps(v), sigma_tang(eps(u_), n_elas, mu_local_DG, local_linear_hardening_DG, beta,
+    newton_lhs = fe.inner(eps(v), sigma_tang(eps(u_), model.n_elas, mu_local_DG, local_linear_hardening_DG, model.beta,
                                              lmbda_local_DG)) * dxm
-    newton_rhs = -fe.inner(eps(u_), as_3D_tensor(sig)) * dxm
+    newton_rhs = -fe.inner(eps(u_), as_3D_tensor(model.sig)) * dxm
 
     results_file = fe.XDMFFile("plasticity_results.xdmf")
     results_file.parameters["flush_output"] = True
@@ -598,6 +578,7 @@ def main() -> None:
     time_step = config.integration_time_limit / (config.total_timesteps)
 
     # Assign layer values
+    W0 = model.W0
     local_initial_stress = assign_layer_values(substrate_props.yield_strength, layer_props.yield_strength, W0, config)
     local_shear_modulus = assign_layer_values(substrate_props.shear_modulus, layer_props.shear_modulus, W0, config)
     local_linear_hardening = assign_layer_values(substrate_props.linear_isotropic_hardening,
@@ -624,19 +605,18 @@ def main() -> None:
         print(f"displacement: {strain_rate.values()[0] * time} mm")
 
         newton_res_norm, plastic_strain_update = run_newton_raphson(
-            A, Res, newton_lhs, newton_rhs, bc_iter, du, Du, sig_old, p, local_initial_stress, local_linear_hardening,
-            local_shear_modulus, lmbda_local_DG, mu_local_DG, sig, n_elas, beta, sig_hyd, W, W0, dxm, max_iters,
+            A, Res, newton_lhs, newton_rhs, bc_iter, model.du, model.Du, model.sig_old, model.p, local_initial_stress, local_linear_hardening,
+            local_shear_modulus, lmbda_local_DG, mu_local_DG, model.sig, model.n_elas, model.beta, model.sig_hyd, model.W, model.W0, dxm, max_iters,
             tolerance)
 
         if newton_res_norm > 1 or np.isnan(newton_res_norm):
             raise ValueError("ERROR: Calculation diverged!")
 
         update_and_store_results(
-            iteration, Du, plastic_strain_update, sig, sig_old, sig_hyd, sig_hyd_avg, p, W0, dxm, P0, u, l_x, l_y, time,
-            results_file, max_stress_over_time, mean_stress_over_time, displacement_list
+            iteration, model.Du, plastic_strain_update, model.sig, model.sig_old, model.sig_hyd, model.sig_hyd_avg, model.p, model.W0, dxm, P0, model.u, l_x, l_y, time, results_file, max_stress_over_time, mean_stress_over_time, displacement_list
         )
 
-        displacement_over_time += [(np.abs(u(l_x / 2, l_y)[1]) / l_y, time)]
+        displacement_over_time += [(np.abs(model.u(l_x / 2, l_y)[1]) / l_y, time)]
 
         time_step = time_controller.update(newton_res_norm)
 
