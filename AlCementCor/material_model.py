@@ -2,6 +2,43 @@ import ufl
 import fenics as fe
 import numpy as np
 
+from AlCementCor.fenics_helpers import as_3D_tensor
+
+
+def eps(displacement):
+    """
+    Calculate the strain tensor (epsilon)
+    :param displacement: The displacement tensor
+    :return: strain tensor
+    """
+    e = fe.sym(fe.nabla_grad(displacement))
+    return fe.as_tensor([[e[0, 0], e[0, 1], 0],
+                         [e[0, 1], e[1, 1], 0],
+                         [0, 0, 0]])
+
+
+def sigma(strain, lmbda_local_DG, mu_local_DG):
+    """
+    Calculate the Cauchy Stress Tensor
+    :param strain: Strain (epsilon)
+    :return: Cauchy Stress Tensor
+    """
+    return lmbda_local_DG * fe.tr(strain) * fe.Identity(3) + 2 * mu_local_DG * strain
+
+
+def sigma_tang(e, n_elas, mu_local_DG, C_linear_h_local_DG, beta, lmbda_local_DG):
+    N_elas = as_3D_tensor(n_elas)
+    return sigma(e, lmbda_local_DG, mu_local_DG) - 3 * mu_local_DG * (
+            3 * mu_local_DG / (3 * mu_local_DG + C_linear_h_local_DG) - beta) * fe.inner(
+        N_elas, e) * N_elas - 2 * mu_local_DG * beta * fe.dev(e)
+
+
+# Von-Mises Stress
+def sigma_v(strain, lmbda_local_DG, mu_local_DG):
+    s = fe.dev(sigma(strain, lmbda_local_DG, mu_local_DG))
+    return fe.sqrt(3 / 2. * fe.inner(s, s))
+
+
 class LinearElastoPlasticModel:
     def __init__(self, simulation_config: 'SimulationConfig', mesh: 'MeshType', substrate_props, layer_props):
         """Initialize the model with given configurations and mesh."""
@@ -54,6 +91,10 @@ class LinearElastoPlasticModel:
         self.v = None
         self.u_ = None
 
+        # Newton equations
+        self.newton_lhs = None
+        self.newton_rhs = None
+
         self._setup()
 
     def _setup(self):
@@ -62,6 +103,7 @@ class LinearElastoPlasticModel:
         self._setup_stress_functions()
         self._setup_other_functions()
         self._setup_local_properties()
+        self._setup_newton_equations()
 
 
     def _setup_function_spaces(self):
@@ -117,6 +159,13 @@ class LinearElastoPlasticModel:
         vec[:] = values
         vec[dofmap[:, 0] > self._simulation_config.width] = outer_values
         local_DG.vector()[:] = vec
+
+    def _setup_newton_equations(self):
+        """Setup Newton equations for the model."""
+        self.newton_lhs = fe.inner(eps(self.v), sigma_tang(eps(self.u_), self.n_elas, self.mu_local_DG,
+                                                           self.local_linear_hardening_DG, self.beta,
+                                                           self.lmbda_local_DG)) * self.dxm
+        self.newton_rhs = -fe.inner(eps(self.u_), as_3D_tensor(self.sig)) * self.dxm
 
     @property
     def mesh(self) -> 'MeshType':

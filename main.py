@@ -11,9 +11,10 @@ from scipy.interpolate import RegularGridInterpolator
 
 from AlCementCor.bnd import *
 from AlCementCor.config import *
+from AlCementCor.fenics_helpers import as_3D_tensor, local_project
 from AlCementCor.info import *
 from AlCementCor.input_file import *
-from AlCementCor.material_model import LinearElastoPlasticModel
+from AlCementCor.material_model import LinearElastoPlasticModel, sigma, eps
 from AlCementCor.material_properties import *
 from AlCementCor.interpolate import *
 from AlCementCor.postproc import plot_strain_displacement, plot_movement, plot_displacement
@@ -259,65 +260,9 @@ def plot(iteration, u, sig_eq_p, title="Von-Mises Stress and Deformation", cbar_
     plt.close()
 
 
-# Util
-########################################################################
-def as_3D_tensor(X):
-    return fe.as_tensor([[X[0], X[3], 0],
-                         [X[3], X[1], 0],
-                         [0, 0, X[2]]])
-
-
-def local_project(v, V, dxm, u=None):
-    dv = fe.TrialFunction(V)
-    v_ = fe.TestFunction(V)
-    a_proj = fe.inner(dv, v_) * dxm
-    b_proj = fe.inner(v, v_) * dxm
-    solver = fe.LocalSolver(a_proj, b_proj)
-    solver.factorize()
-    if u is None:
-        u = fe.Function(V)
-        solver.solve_local_rhs(u)
-        return u
-    else:
-        solver.solve_local_rhs(u)
-        return
-
-
 # Math!
 ########################################################################
 
-def eps(displacement):
-    """
-    Calculate the strain tensor (epsilon)
-    :param displacement: The displacement tensor
-    :return: strain tensor
-    """
-    e = fe.sym(fe.nabla_grad(displacement))
-    return fe.as_tensor([[e[0, 0], e[0, 1], 0],
-                         [e[0, 1], e[1, 1], 0],
-                         [0, 0, 0]])
-
-
-def sigma(strain, lmbda_local_DG, mu_local_DG):
-    """
-    Calculate the Cauchy Stress Tensor
-    :param strain: Strain (epsilon)
-    :return: Cauchy Stress Tensor
-    """
-    return lmbda_local_DG * fe.tr(strain) * fe.Identity(3) + 2 * mu_local_DG * strain
-
-
-def sigma_tang(e, n_elas, mu_local_DG, C_linear_h_local_DG, beta, lmbda_local_DG):
-    N_elas = as_3D_tensor(n_elas)
-    return sigma(e, lmbda_local_DG, mu_local_DG) - 3 * mu_local_DG * (
-            3 * mu_local_DG / (3 * mu_local_DG + C_linear_h_local_DG) - beta) * fe.inner(
-        N_elas, e) * N_elas - 2 * mu_local_DG * beta * fe.dev(e)
-
-
-# Von-Mises Stress
-def sigma_v(strain, lmbda_local_DG, mu_local_DG):
-    s = fe.dev(sigma(strain, lmbda_local_DG, mu_local_DG))
-    return fe.sqrt(3 / 2. * fe.inner(s, s))
 
 
 # Macaulays Bracket for <f_elastic>+
@@ -540,10 +485,6 @@ def main() -> None:
     # Set up boundary conditions
     bc, bc_iter, conditions = setup_displacement_bnd(model, config.use_two_material_layers, model.strain_rate, l_x, l_y)
 
-    newton_lhs = fe.inner(eps(model.v), sigma_tang(eps(model.u_), model.n_elas, model.mu_local_DG, model.local_linear_hardening_DG, model.beta,
-                                             model.lmbda_local_DG)) * model.dxm
-    newton_rhs = -fe.inner(eps(model.u_), as_3D_tensor(model.sig)) * model.dxm
-
     results_file = fe.XDMFFile("plasticity_results.xdmf")
     results_file.parameters["flush_output"] = True
     results_file.parameters["functions_share_mesh"] = True
@@ -574,12 +515,12 @@ def main() -> None:
         iteration += 1
         for condition in conditions:
             condition.update_time(time_step)
-        A, Res = fe.assemble_system(newton_lhs, newton_rhs, bc)
+        A, Res = fe.assemble_system(model.newton_lhs, model.newton_rhs, bc)
         print(f"Step: {iteration + 1}, time: {time} s")
         print(f"displacement: {model.strain_rate.values()[0] * time} mm")
 
         newton_res_norm, plastic_strain_update = run_newton_raphson(
-            A, Res, newton_lhs, newton_rhs, bc_iter, model.du, model.Du, model.sig_old, model.p, local_initial_stress, local_linear_hardening,
+            A, Res, model.newton_lhs, model.newton_rhs, bc_iter, model.du, model.Du, model.sig_old, model.p, local_initial_stress, local_linear_hardening,
             local_shear_modulus, model.lmbda_local_DG, model.mu_local_DG, model.sig, model.n_elas, model.beta, model.sig_hyd, model.W, model.W0, model.dxm, max_iters,
             tolerance)
 
