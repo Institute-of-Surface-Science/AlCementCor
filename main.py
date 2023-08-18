@@ -564,7 +564,7 @@ def main() -> None:
      sig_0_test, lmbda_test, DG, deg_stress) = setup_numerical_stuff(config, mesh)
 
     # Set up boundary conditions
-    bc, bc_iter, conditions = setup_boundary_conditions(V, config.use_two_material_layers, strain_rate, l_x, l_y)
+    bc, bc_iter, conditions = setup_displacement_bnd(V, config.use_two_material_layers, strain_rate, l_x, l_y)
 
     metadata = {"quadrature_degree": deg_stress, "quadrature_scheme": "default"}
     dxm = ufl.dx(metadata=metadata)

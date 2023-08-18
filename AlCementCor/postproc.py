@@ -1,6 +1,6 @@
 from AlCementCor.input_file import ExternalInput
 import matplotlib.pyplot as plt
-
+import numpy as np
 
 def plot_strain_displacement(result):
     displacement_x = result[ExternalInput.DISPLACEMENTX.value]
