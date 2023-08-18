@@ -22,7 +22,7 @@ fe.parameters["form_compiler"]["representation"] = 'quadrature'
 warnings.simplefilter("once", QuadratureRepresentationDeprecationWarning)
 
 
-def setup_boundary_conditions(V, two_layers, C_strain_rate, l_x, l_y):
+def setup_displacement_bnd(V, two_layers, C_strain_rate, l_x, l_y):
     # Define boundary location conditions
     def is_bottom_boundary(x, on_boundary):
         return on_boundary and fe.near(x[1], 0.0)
@@ -556,6 +556,7 @@ def main() -> None:
     mesh, l_x, l_y = setup_geometry(config)
 
     # Set up numerical parameters
+    # todo: move to config file
     strain_rate = fe.Constant(0.000001)  # 0.01/s
 
     # Set up numerical variables and functions
