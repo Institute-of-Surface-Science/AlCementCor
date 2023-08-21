@@ -416,12 +416,12 @@ class LinearElastoPlasticModel:
         self.boundary = LinearElastoPlasticBnd(self._simulation_config, self.V)
 
         # Assign layer values
-        self.local_initial_stress = self.assign_layer_values(self._simulation_config._substrate_properties.yield_strength,
-                                                             self._simulation_config._layer_properties.yield_strength)
-        self.local_shear_modulus = self.assign_layer_values(self._simulation_config._substrate_properties.shear_modulus,
-                                                            self._simulation_config._layer_properties.shear_modulus)
-        self.local_linear_hardening = self.assign_layer_values(self._simulation_config._substrate_properties.linear_isotropic_hardening,
-                                                               self._simulation_config._layer_properties.linear_isotropic_hardening)
+        self.local_initial_stress = self.assign_layer_values(self._simulation_config.substrate_properties.yield_strength,
+                                                             self._simulation_config.layer_properties.yield_strength)
+        self.local_shear_modulus = self.assign_layer_values(self._simulation_config.substrate_properties.shear_modulus,
+                                                            self._simulation_config.layer_properties.shear_modulus)
+        self.local_linear_hardening = self.assign_layer_values(self._simulation_config.substrate_properties.linear_isotropic_hardening,
+                                                               self._simulation_config.layer_properties.linear_isotropic_hardening)
 
 
 
@@ -493,17 +493,17 @@ class LinearElastoPlasticModel:
     def _setup_local_properties(self):
         """Setup local properties of the model."""
         self.mu_local_DG = fe.Function(self.DG)
-        self._assign_local_values(self._simulation_config._substrate_properties.shear_modulus, self._simulation_config._layer_properties.shear_modulus,
+        self._assign_local_values(self._simulation_config.substrate_properties.shear_modulus, self._simulation_config.layer_properties.shear_modulus,
                                   self.mu_local_DG)
 
         self.lmbda_local_DG = fe.Function(self.DG)
-        self._assign_local_values(self._simulation_config._substrate_properties.first_lame_parameter,
-                                  self._simulation_config._layer_properties.first_lame_parameter,
+        self._assign_local_values(self._simulation_config.substrate_properties.first_lame_parameter,
+                                  self._simulation_config.layer_properties.first_lame_parameter,
                                   self.lmbda_local_DG)
 
         self.local_linear_hardening_DG = fe.Function(self.DG)
-        self._assign_local_values(self._simulation_config._substrate_properties.linear_isotropic_hardening,
-                                  self._simulation_config._layer_properties.linear_isotropic_hardening,
+        self._assign_local_values(self._simulation_config.substrate_properties.linear_isotropic_hardening,
+                                  self._simulation_config.layer_properties.linear_isotropic_hardening,
                                   self.local_linear_hardening_DG)
 
     def _assign_local_values(self, values: float, outer_values: float, local_DG: fe.Function) -> None:
@@ -642,6 +642,14 @@ class LinearElastoPlasticConfig:
         self.mesh = fe.RectangleMesh(fe.Point(0.0, 0.0), fe.Point(self.l_x, self.l_y),
                                      self._simulation_config.mesh_resolution_x,
                                      self._simulation_config.mesh_resolution_y)
+
+    @property
+    def substrate_properties(self) -> 'PropertiesType':
+        return self._substrate_properties
+
+    @property
+    def layer_properties(self) -> 'PropertiesType':
+        return self._layer_properties
 
 class LinearElastoPlasticBnd:
     def __init__(self, simulation_config, V):
