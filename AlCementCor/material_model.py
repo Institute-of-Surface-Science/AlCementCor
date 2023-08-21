@@ -52,13 +52,41 @@ def compute_stress(strain_tensor, lambda_coefficient: fe.Function, shear_modulus
     return total_stress
 
 
-def sigma_tang(e, n_elas: fe.Function, mu_local_DG: fe.Function,
-               C_linear_h_local_DG: fe.Function, beta: fe.Function,
-               lmbda_local_DG: fe.Function):
-    N_elas = as_3D_tensor(n_elas)
-    return compute_stress(e, lmbda_local_DG, mu_local_DG) - 3 * mu_local_DG * (
-            3 * mu_local_DG / (3 * mu_local_DG + C_linear_h_local_DG) - beta) * fe.inner(
-        N_elas, e) * N_elas - 2 * mu_local_DG * beta * fe.dev(e)
+def compute_tangential_stress(strain_tensor, normal_elasticity: fe.Function, shear_modulus: fe.Function,
+                              linear_hardening_coeff: fe.Function, beta_coeff: fe.Function,
+                              lambda_coefficient: fe.Function) -> fe.Function:
+    """
+    Compute the tangential stress tensor based on given parameters.
+
+    Parameters:
+    - strain_tensor: 2D or 3D strain tensor.
+    - normal_elasticity: Normal direction in the elasticity space.
+    - shear_modulus: Material's shear modulus (or Lamé's second parameter).
+    - linear_hardening_coeff: Linear hardening coefficient.
+    - beta_coeff: Beta coefficient.
+    - lambda_coefficient: Lamé's first parameter.
+
+    Returns:
+    - Tangential stress tensor
+    """
+
+    # Convert the normal elasticity to a 3D tensor format
+    three_dim_normal_elas = as_3D_tensor(normal_elasticity)
+
+    # Compute base stress
+    base_stress = compute_stress(strain_tensor, lambda_coefficient, shear_modulus)
+
+    # Compute contributions to the tangential stress
+    normal_elasticity_contribution = 3 * shear_modulus * (
+                3 * shear_modulus / (3 * shear_modulus + linear_hardening_coeff) - beta_coeff)
+    normal_elasticity_contribution *= fe.inner(three_dim_normal_elas, strain_tensor) * three_dim_normal_elas
+
+    deviatoric_contribution = 2 * shear_modulus * beta_coeff * fe.dev(strain_tensor)
+
+    # Combine base stress with additional stress contributions
+    tangential_stress = base_stress - normal_elasticity_contribution - deviatoric_contribution
+
+    return tangential_stress
 
 
 def sigma_v(strain, lmbda_local_DG: fe.Function, mu_local_DG: fe.Function) -> fe.Function:
@@ -199,7 +227,7 @@ class LinearElastoPlasticModel:
 
     def _setup_newton_equations(self):
         """Setup Newton equations for the model."""
-        self.newton_lhs = fe.inner(compute_strain_tensor(self.v), sigma_tang(compute_strain_tensor(self.u_), self.n_elas, self.mu_local_DG,
+        self.newton_lhs = fe.inner(compute_strain_tensor(self.v), compute_tangential_stress(compute_strain_tensor(self.u_), self.n_elas, self.mu_local_DG,
                                                            self.local_linear_hardening_DG, self.beta,
                                                            self.lmbda_local_DG)) * self.dxm
         self.newton_rhs = -fe.inner(compute_strain_tensor(self.u_), as_3D_tensor(self.sig)) * self.dxm
