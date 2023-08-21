@@ -89,18 +89,26 @@ def compute_tangential_stress(strain_tensor, normal_elasticity: fe.Function, she
     return tangential_stress
 
 
-def sigma_v(strain, lmbda_local_DG: fe.Function, mu_local_DG: fe.Function) -> fe.Function:
+def compute_von_mises_stress(strain_tensor, lambda_coefficient: fe.Function, shear_modulus: fe.Function) -> fe.Function:
     """
     Calculate the Von-Mises Stress.
 
     Parameters:
-    - strain: Strain tensor
+    - strain_tensor: Strain tensor
+    - lambda_coefficient: Lamé's first parameter
+    - shear_modulus: Material's shear modulus (or Lamé's second parameter)
 
     Returns:
     - Von-Mises Stress
     """
-    s = fe.dev(compute_stress(strain, lmbda_local_DG, mu_local_DG))
-    return fe.sqrt(3 / 2. * fe.inner(s, s))
+
+    # Compute the deviatoric component of the stress tensor
+    deviatoric_stress = fe.dev(compute_stress(strain_tensor, lambda_coefficient, shear_modulus))
+
+    # Compute the magnitude of the deviatoric stress
+    deviatoric_magnitude = fe.sqrt(1.5 * fe.inner(deviatoric_stress, deviatoric_stress))
+
+    return deviatoric_magnitude
 
 
 class LinearElastoPlasticModel:
