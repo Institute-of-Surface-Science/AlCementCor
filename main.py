@@ -176,162 +176,6 @@ def setup_geometry(simulation_config):
                             simulation_config.mesh_resolution_y)
     return mesh, l_x, l_y
 
-
-def plot(iteration, u, sig_eq_p, title="Von-Mises Stress and Deformation", cbar_label="Von-Mises Stress",
-         cmap="viridis", quiver_steps=5):
-    """
-    Function to plot and save the Von Mises stress distribution
-
-    Parameters:
-    i : integer
-        Iteration index for saving the file
-    sig_eq_p : fenics.Function
-        The function you want to plot
-    title : str, optional
-        Title of the plot
-    cbar_label : str, optional
-        Label for the colorbar
-    cmap : str, optional
-        Colormap used for the plot
-
-    Returns:
-    None
-    """
-
-    fig = plt.figure(figsize=(10, 8))
-
-    mesh = sig_eq_p.function_space().mesh()
-    x = mesh.coordinates()[:, 0]
-    y = mesh.coordinates()[:, 1]
-    triangles = mesh.cells()
-
-    scalars = sig_eq_p.compute_vertex_values(mesh)
-    triangulation = tri.Triangulation(x, y, triangles)
-
-    c = plt.tripcolor(triangulation, scalars, shading='flat', cmap=cmap)
-
-    plt.title(title, fontsize=20)
-    plt.xlabel('x', fontsize=16)
-    plt.ylabel('y', fontsize=16)
-    plt.tick_params(axis='both', which='major', labelsize=12)
-
-    # create quiver plot
-    X = np.linspace(np.min(x), np.max(x), quiver_steps)
-    Y = np.linspace(np.min(y), np.max(y), quiver_steps)
-    U = np.zeros((quiver_steps, quiver_steps))
-    V = np.zeros((quiver_steps, quiver_steps))
-
-    for i in range(quiver_steps):
-        for j in range(quiver_steps):
-            U[j, i], V[j, i] = u(X[i], Y[j])
-
-    # Reduce the arrow head size
-    # Q = plt.quiver(X, Y, U, V, color='r', headwidth=4, headlength=4, headaxislength=4, scale_units='width', scale=10)
-    Q = plt.quiver(X, Y, U, V, color='r', pivot='mid')
-
-    # Annotate the quivers
-    # for i in range(quiver_steps):
-    #     for j in range(quiver_steps):
-    #         if (i + j) % 2 == 0:  # Skip some quivers for clarity
-    #             label = f'({U[j, i]:.2f}, {V[j, i]:.2f})'
-    #             plt.annotate(label, (X[i], Y[j]), textcoords="offset points", xytext=(-10, -10), ha='center',
-    #                          fontsize=8)
-
-    # Add a single quiver for the legend
-    # qk = plt.quiverkey(Q, 0.9, 0.1, 1, r'$1 \, m$', labelpos='E', coordinates='figure')
-
-    # Extend the x and y limits
-    x_range = np.max(x) - np.min(x)
-    y_range = np.max(y) - np.min(y)
-    plt.xlim(np.min(x) - 0.1 * x_range, np.max(x) + 0.1 * x_range)
-    plt.ylim(np.min(y) - 0.1 * y_range, np.max(y) + 0.1 * y_range)
-
-    # Create custom legend
-    custom_lines = [Line2D([0], [0], color='r', lw=2)]
-    plt.legend(custom_lines, ['deformation'])
-
-    cbar = plt.colorbar(c)
-    cbar.set_label(cbar_label, size=16)
-    cbar.ax.tick_params(labelsize=12)
-
-    plt.tight_layout()
-
-    plt.savefig("vm" + str(iteration) + ".png", dpi=300)
-    plt.close()
-
-
-# Math!
-########################################################################
-
-
-
-# Macaulays Bracket for <f_elastic>+
-# only positive for x > 0
-ppos = lambda x: (x + abs(x)) / 2.
-
-
-# https://www.dynasupport.com/tutorial/computational-plasticity/radial-return
-# https://www.dynasupport.com/tutorial/computational-plasticity/generalizing-the-yield-function
-# https://www.dynasupport.com/tutorial/computational-plasticity/the-consistent-tangent-matrix
-def proj_sig(deps, old_sig, old_p, sig_0_local, C_linear_h_local, mu_local, lmbda_local_DG, mu_local_DG):
-    # update stress from change in strain (deps)
-    sig_n = as_3D_tensor(old_sig)
-    sig_elas = sig_n + compute_stress(deps, lmbda_local_DG, mu_local_DG)
-
-    # trial stress
-    s = fe.dev(sig_elas)
-    # von-Mises stress or equivalent trial stress
-    sig_eq = fe.sqrt(3 / 2. * fe.inner(s, s))
-
-    # prevent division by zero
-    # if np.mean(local_project(old_p, P0).vector()[:]) < 1E-12:
-    #    old_p += 1E-12
-
-    # https://doc.comsol.com/5.5/doc/com.comsol.help.sme/sme_ug_theory.06.29.html#3554826
-    # Calculate flow stress based on hardening law
-    # linear hardening
-    # k_linear = C_sig0 + C_linear_isotropic_hardening * old_p
-    k_linear = sig_0_local + C_linear_h_local * old_p
-
-    #     # Ludwik hardening
-    #     k_ludwik = C_sig0 + C_nlin_ludwik * pow(old_p + 1E-12, C_exponent_ludwik)
-
-    #     # swift hardening
-    #     k_swift = C_sig0 * pow(1 + old_p/C_swift_eps0, C_exponent_swift)
-
-    # yield surface/ if trial stress <= yield_stress + H * old_p: elastic
-    f_elas = sig_eq - k_linear
-    # f_elas = sig_eq - k_ludwik
-    # f_elas = sig_eq - k_swift
-
-    # change of plastic strain =0 when f_elas < 0
-    # in elastic case = 0
-    dp = ppos(f_elas) / (3 * mu_local + C_linear_h_local)
-    # dp_old = ppos(f_elas) / (3 * C_mu + C_linear_isotropic_hardening)
-    # dp = ppos(f_elas) / (3 * C_mu)
-    # print("dp", np.mean(local_project(dp, P0).vector()[:]), np.max(local_project(dp, P0).vector()[:]))
-    # print("dp_old", np.mean(local_project(dp_old, P0).vector()[:]), np.max(local_project(dp_old, P0).vector()[:]))
-
-    # normal vector on yield surface?
-    # in elastic case = 0
-    n_elas = s * ppos(f_elas) / (sig_eq * f_elas)
-
-    # radial return mapping?
-    # in elastic case = 0
-    beta = 3 * mu_local * dp / sig_eq
-
-    # updated cauchy stress tensor
-    # in elastic case = sig_elas
-    new_sig = sig_elas - beta * s
-
-    # Hydrostatic stress
-    sig_hyd = (1. / 3) * fe.tr(new_sig)
-
-    return fe.as_vector([new_sig[0, 0], new_sig[1, 1], new_sig[2, 2], new_sig[0, 1]]), \
-        fe.as_vector([n_elas[0, 0], n_elas[1, 1], n_elas[2, 2], n_elas[0, 1]]), \
-        beta, dp, sig_hyd
-
-
 def assign_local_values(values, outer_values, local_DG, DG, simulation_config):
     dofmap = DG.tabulate_dof_coordinates()[:]
     vec = np.zeros(dofmap.shape[0])
@@ -362,95 +206,41 @@ def assign_layer_values(inner_value, outer_value, W0, simulation_config):
     return fe.interpolate(layer, W0)
 
 
-def check_convergence(nRes, nRes0, tol, niter, Nitermax):
-    return niter == 0 or (nRes0 > 0 and nRes / nRes0 > tol and niter < Nitermax)
-
-
-def run_newton_raphson(system_matrix, residual, newton_form, residual_form, boundary_conditions,
-                       solution_change, total_change, old_stress, hydrostatic_pressure, local_initial_stress,
-                       local_linear_hardening, local_shear_modulus, local_lame_first, local_shear_modulus_dg,
-                       stress, elastic_strain, back_stress, hydrostatic_stress, function_space, null_space,
-                       dx_measure, max_iterations, tolerance):
-    """
-    Solve a nonlinear problem using the Newton-Raphson method.
-    """
-
-    # Initial residual norm
-    initial_residual_norm = residual.norm("l2")
-
-    # Initialize iteration counter and current residual norm
-    iteration_counter = 0
-    current_residual_norm = initial_residual_norm
-
-    # Start iterations
-    while iteration_counter == 0 or (
-            initial_residual_norm > 0 and current_residual_norm / initial_residual_norm > tolerance and iteration_counter < max_iterations):
-        # Solve the linear system
-        fe.solve(system_matrix, solution_change.vector(), residual, "mumps")
-
-        # Update solution
-        total_change.assign(total_change + solution_change)
-        strain_change = compute_strain_tensor(total_change)
-
-        # Project the new stress
-        stress_update, elastic_strain_update, back_stress_update, pressure_change, hydrostatic_stress_update = proj_sig(
-            strain_change, old_stress, hydrostatic_pressure, local_initial_stress, local_linear_hardening,
-            local_shear_modulus, local_lame_first, local_shear_modulus_dg)
-
-        # Update field values
-        local_project(stress_update, function_space, dx_measure, stress)
-        local_project(elastic_strain_update, function_space, dx_measure, elastic_strain)
-        local_project(back_stress_update, null_space, dx_measure, back_stress)
-        hydrostatic_stress.assign(local_project(hydrostatic_stress_update, null_space, dx_measure))
-
-        # Assemble system
-        system_matrix, residual = fe.assemble_system(newton_form, residual_form, boundary_conditions)
-
-        # Update residual norm
-        current_residual_norm = residual.norm("l2")
-        print(f"Residual: {current_residual_norm}")
-
-        # Increment iteration counter
-        iteration_counter += 1
-
-    return current_residual_norm, pressure_change
-
-
-def update_and_store_results(i, Du, dp_, sig, sig_old, sig_hyd, sig_hyd_avg, p, W0, dxm, P0, u, l_x, l_y, time,
-                             file_results, stress_max_t, stress_mean_t, disp_t):
-    # update displacement
-    u.assign(u + Du)
-    # update plastic strain
-    p.assign(p + local_project(dp_, W0, dxm))
-
-    # update stress fields
-    sig_old.assign(sig)
-    sig_hyd_avg.assign(fe.project(sig_hyd, P0))
-
-    # # s11, s12, s21, s22 = sig.split(deepcopy=True)
-    # # avg_stress_y = np.average(s22.vector()[:])
-    # # avg_stress = np.average(sig.vector()[:])
-    sig_n = as_3D_tensor(sig)
-    s = fe.dev(sig_n)
-
-    # calculate the von-mises equivalent stress
-    sig_eq = fe.sqrt(3 / 2. * fe.inner(s, s))
-    sig_eq_p = local_project(sig_eq, P0, dxm)
-
-    if i % 10 == 0:
-        plot(i, u, sig_eq_p)
-
-    # calculate and project the von-mises stress for later use
-    stress_max_t.extend([np.abs(np.amax(sig_eq_p.vector()[:]))])
-    stress_mean_t.extend([np.abs(np.mean(sig_eq_p.vector()[:]))])
-
-    # append the y-displacement at the center of the bar
-    disp_t.append(u(l_x / 2, l_y)[1])
-
-    file_results.write(u, time)
-    p_avg = fe.Function(P0, name="Plastic strain")
-    p_avg.assign(fe.project(p, P0))
-    file_results.write(p_avg, time)
+# def update_and_store_results(i, Du, dp_, sig, sig_old, sig_hyd, sig_hyd_avg, p, W0, dxm, P0, u, l_x, l_y, time,
+#                              file_results, stress_max_t, stress_mean_t, disp_t):
+#     # update displacement
+#     u.assign(u + Du)
+#     # update plastic strain
+#     p.assign(p + local_project(dp_, W0, dxm))
+#
+#     # update stress fields
+#     sig_old.assign(sig)
+#     sig_hyd_avg.assign(fe.project(sig_hyd, P0))
+#
+#     # # s11, s12, s21, s22 = sig.split(deepcopy=True)
+#     # # avg_stress_y = np.average(s22.vector()[:])
+#     # # avg_stress = np.average(sig.vector()[:])
+#     sig_n = as_3D_tensor(sig)
+#     s = fe.dev(sig_n)
+#
+#     # calculate the von-mises equivalent stress
+#     sig_eq = fe.sqrt(3 / 2. * fe.inner(s, s))
+#     sig_eq_p = local_project(sig_eq, P0, dxm)
+#
+#     if i % 10 == 0:
+#         plot(i, u, sig_eq_p)
+#
+#     # calculate and project the von-mises stress for later use
+#     stress_max_t.extend([np.abs(np.amax(sig_eq_p.vector()[:]))])
+#     stress_mean_t.extend([np.abs(np.mean(sig_eq_p.vector()[:]))])
+#
+#     # append the y-displacement at the center of the bar
+#     disp_t.append(u(l_x / 2, l_y)[1])
+#
+#     file_results.write(u, time)
+#     p_avg = fe.Function(P0, name="Plastic strain")
+#     p_avg.assign(fe.project(p, P0))
+#     file_results.write(p_avg, time)
 
 
 def cli_interface():
@@ -499,41 +289,44 @@ def main() -> None:
     local_linear_hardening = assign_layer_values(substrate_props.linear_isotropic_hardening,
                                                  layer_props.linear_isotropic_hardening, W0, config)
 
+    model.run_time_integration(time_step, conditions, bc, bc_iter, local_initial_stress,
+                             local_linear_hardening, local_shear_modulus, max_iters, tolerance, results_file, l_x, l_y)
+
     # Initialize result and time step lists
-    displacement_over_time = [(0, 0)]
-    max_stress_over_time = [0]
-    mean_stress_over_time = [0]
-    displacement_list = [0]
-
-    time = 0
-    iteration = 0
-
-    time_controller = PITimeController(time_step, 1e-2 * tolerance)
-
-    while time < config.integration_time_limit:
-        time += time_step
-        iteration += 1
-        for condition in conditions:
-            condition.update_time(time_step)
-        A, Res = fe.assemble_system(model.newton_lhs, model.newton_rhs, bc)
-        print(f"Step: {iteration + 1}, time: {time} s")
-        print(f"displacement: {model.strain_rate.values()[0] * time} mm")
-
-        newton_res_norm, plastic_strain_update = run_newton_raphson(
-            A, Res, model.newton_lhs, model.newton_rhs, bc_iter, model.du, model.Du, model.sig_old, model.p, local_initial_stress, local_linear_hardening,
-            local_shear_modulus, model.lmbda_local_DG, model.mu_local_DG, model.sig, model.n_elas, model.beta, model.sig_hyd, model.W, model.W0, model.dxm, max_iters,
-            tolerance)
-
-        if newton_res_norm > 1 or np.isnan(newton_res_norm):
-            raise ValueError("ERROR: Calculation diverged!")
-
-        update_and_store_results(
-            iteration, model.Du, plastic_strain_update, model.sig, model.sig_old, model.sig_hyd, model.sig_hyd_avg, model.p, model.W0, model.dxm, model.P0, model.u, l_x, l_y, time, results_file, max_stress_over_time, mean_stress_over_time, displacement_list
-        )
-
-        displacement_over_time += [(np.abs(model.u(l_x / 2, l_y)[1]) / l_y, time)]
-
-        time_step = time_controller.update(newton_res_norm)
+    # displacement_over_time = [(0, 0)]
+    # max_stress_over_time = [0]
+    # mean_stress_over_time = [0]
+    # displacement_list = [0]
+    #
+    # time = 0
+    # iteration = 0
+    #
+    # time_controller = PITimeController(time_step, 1e-2 * tolerance)
+    #
+    # while time < config.integration_time_limit:
+    #     time += time_step
+    #     iteration += 1
+    #     for condition in conditions:
+    #         condition.update_time(time_step)
+    #     A, Res = fe.assemble_system(model.newton_lhs, model.newton_rhs, bc)
+    #     print(f"Step: {iteration + 1}, time: {time} s")
+    #     print(f"displacement: {model.strain_rate.values()[0] * time} mm")
+    #
+    #     newton_res_norm, plastic_strain_update = run_newton_raphson(
+    #         A, Res, model.newton_lhs, model.newton_rhs, bc_iter, model.du, model.Du, model.sig_old, model.p, local_initial_stress, local_linear_hardening,
+    #         local_shear_modulus, model.lmbda_local_DG, model.mu_local_DG, model.sig, model.n_elas, model.beta, model.sig_hyd, model.W, model.W0, model.dxm, max_iters,
+    #         tolerance)
+    #
+    #     if newton_res_norm > 1 or np.isnan(newton_res_norm):
+    #         raise ValueError("ERROR: Calculation diverged!")
+    #
+    #     update_and_store_results(
+    #         iteration, model.Du, plastic_strain_update, model.sig, model.sig_old, model.sig_hyd, model.sig_hyd_avg, model.p, model.W0, model.dxm, model.P0, model.u, l_x, l_y, time, results_file, max_stress_over_time, mean_stress_over_time, displacement_list
+    #     )
+    #
+    #     displacement_over_time += [(np.abs(model.u(l_x / 2, l_y)[1]) / l_y, time)]
+    #
+    #     time_step = time_controller.update(newton_res_norm)
 
 
 if __name__ == "__main__":
