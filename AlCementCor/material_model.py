@@ -455,15 +455,23 @@ class LinearElastoPlasticModel:
 
     def _setup_function_spaces(self) -> None:
         """Set up the function spaces required for the simulation."""
-        self.deg_stress = self._simulation_config._simulation_config.finite_element_degree_stress
-        self.V = fe.VectorFunctionSpace(self._mesh, "CG", self._simulation_config._simulation_config.finite_element_degree_u)
+        config = self._simulation_config._simulation_config
+        mesh_cell = self._mesh.ufl_cell()
+        self.deg_stress = config.finite_element_degree_stress
+        deg_u = config.finite_element_degree_u
+
+        # Create vector and scalar function spaces
+        self.V = fe.VectorFunctionSpace(self._mesh, "CG", deg_u)
         self.DG = fe.FunctionSpace(self._mesh, "DG", 0)
-        We = fe.VectorElement("Quadrature", self._mesh.ufl_cell(), degree=self.deg_stress, dim=4, quad_scheme='default')
-        self.W = fe.FunctionSpace(self._mesh, We)
-        self.W0 = fe.FunctionSpace(self._mesh,
-                                   fe.FiniteElement("Quadrature", self._mesh.ufl_cell(), degree=self.deg_stress,
-                                                    quad_scheme='default'))
         self.P0 = fe.FunctionSpace(self._mesh, "DG", 0)
+
+        # Setup quadrature spaces
+        quad_element = fe.FiniteElement("Quadrature", mesh_cell, degree=self.deg_stress, quad_scheme='default')
+        self.W0 = fe.FunctionSpace(self._mesh, quad_element)
+
+        vec_element = fe.VectorElement("Quadrature", mesh_cell, degree=self.deg_stress, dim=4, quad_scheme='default')
+        self.W = fe.FunctionSpace(self._mesh, vec_element)
+
 
     def _setup_displacement_functions(self):
         """Set up functions related to displacements."""
