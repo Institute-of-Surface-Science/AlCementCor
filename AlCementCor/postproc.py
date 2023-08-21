@@ -1,5 +1,7 @@
 from AlCementCor.input_file import ExternalInput
 import matplotlib.pyplot as plt
+import matplotlib.tri as tri
+from matplotlib.lines import Line2D
 import numpy as np
 
 def plot_strain_displacement(result):

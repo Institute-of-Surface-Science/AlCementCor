@@ -112,9 +112,14 @@ def compute_von_mises_stress(strain_tensor, lambda_coefficient: fe.Function, she
 
     return deviatoric_magnitude
 
-# Macaulays Bracket for <f_elastic>+
-# only positive for x > 0
-ppos = lambda x: (x + abs(x)) / 2.
+
+def ppos(x):
+    """
+    Macaulay's Bracket for <f_elastic>+.
+    Returns a value only positive for x > 0.
+    """
+    return (x + abs(x)) / 2.
+
 
 
 # https://www.dynasupport.com/tutorial/computational-plasticity/radial-return
