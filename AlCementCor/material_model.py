@@ -5,9 +5,12 @@ import numpy as np
 from AlCementCor.fenics_helpers import as_3D_tensor
 
 
-def eps(displacement: fe.Function):
+def compute_strain_tensor(displacement: fe.Function):
     """
-    Calculate the strain tensor (epsilon).
+    Calculate the strain tensor (epsilon) based on a given displacement tensor.
+
+    Note:
+    - Assumes Plane-Strain conditions (third component in the strain is 0)
 
     Parameters:
     - displacement: The displacement tensor
@@ -15,10 +18,13 @@ def eps(displacement: fe.Function):
     Returns:
     - strain tensor
     """
-    e = fe.sym(fe.nabla_grad(displacement))
-    return fe.as_tensor([[e[0, 0], e[0, 1], 0],
-                         [e[0, 1], e[1, 1], 0],
-                         [0, 0, 0]])
+    symmetric_gradient = fe.sym(fe.nabla_grad(displacement))
+
+    return fe.as_tensor([
+        [symmetric_gradient[0, 0], symmetric_gradient[0, 1], 0],
+        [symmetric_gradient[0, 1], symmetric_gradient[1, 1], 0],
+        [0, 0, 0]
+    ])
 
 
 def sigma(strain, lmbda_local_DG: fe.Function, mu_local_DG: fe.Function):
@@ -181,10 +187,10 @@ class LinearElastoPlasticModel:
 
     def _setup_newton_equations(self):
         """Setup Newton equations for the model."""
-        self.newton_lhs = fe.inner(eps(self.v), sigma_tang(eps(self.u_), self.n_elas, self.mu_local_DG,
+        self.newton_lhs = fe.inner(compute_strain_tensor(self.v), sigma_tang(compute_strain_tensor(self.u_), self.n_elas, self.mu_local_DG,
                                                            self.local_linear_hardening_DG, self.beta,
                                                            self.lmbda_local_DG)) * self.dxm
-        self.newton_rhs = -fe.inner(eps(self.u_), as_3D_tensor(self.sig)) * self.dxm
+        self.newton_rhs = -fe.inner(compute_strain_tensor(self.u_), as_3D_tensor(self.sig)) * self.dxm
 
     @property
     def mesh(self) -> 'MeshType':

@@ -14,7 +14,7 @@ from AlCementCor.config import *
 from AlCementCor.fenics_helpers import as_3D_tensor, local_project
 from AlCementCor.info import *
 from AlCementCor.input_file import *
-from AlCementCor.material_model import LinearElastoPlasticModel, sigma, eps
+from AlCementCor.material_model import *
 from AlCementCor.material_properties import *
 from AlCementCor.interpolate import *
 from AlCementCor.postproc import plot_strain_displacement, plot_movement, plot_displacement
@@ -390,7 +390,7 @@ def run_newton_raphson(system_matrix, residual, newton_form, residual_form, boun
 
         # Update solution
         total_change.assign(total_change + solution_change)
-        strain_change = eps(total_change)
+        strain_change = compute_strain_tensor(total_change)
 
         # Project the new stress
         stress_update, elastic_strain_update, back_stress_update, pressure_change, hydrostatic_stress_update = proj_sig(
