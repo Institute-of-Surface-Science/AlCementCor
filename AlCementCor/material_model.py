@@ -27,24 +27,36 @@ def compute_strain_tensor(displacement: fe.Function):
     ])
 
 
-def sigma(strain, lmbda_local_DG: fe.Function, mu_local_DG: fe.Function):
+def compute_stress(strain_tensor, lambda_coefficient: fe.Function, shear_modulus: fe.Function) -> fe.Function:
     """
-    Calculate the Cauchy Stress Tensor.
+    Calculate the Cauchy Stress Tensor for linear elasticity.
 
     Parameters:
-    - strain: Strain tensor
+    - strain_tensor: 2D or 3D strain tensor representing deformation.
+    - lambda_coefficient: Lamé's first parameter.
+    - shear_modulus: Material's shear modulus (or Lamé's second parameter).
 
     Returns:
     - Cauchy Stress Tensor
     """
-    return lmbda_local_DG * fe.tr(strain) * fe.Identity(3) + 2 * mu_local_DG * strain
+
+    # Calculate isotropic (volumetric) stress contribution
+    isotropic_stress = lambda_coefficient * fe.tr(strain_tensor) * fe.Identity(3)
+
+    # Calculate deviatoric (shape-changing) stress contribution
+    deviatoric_stress = 2 * shear_modulus * strain_tensor
+
+    # Combine isotropic and deviatoric contributions
+    total_stress = isotropic_stress + deviatoric_stress
+
+    return total_stress
 
 
 def sigma_tang(e, n_elas: fe.Function, mu_local_DG: fe.Function,
                C_linear_h_local_DG: fe.Function, beta: fe.Function,
                lmbda_local_DG: fe.Function):
     N_elas = as_3D_tensor(n_elas)
-    return sigma(e, lmbda_local_DG, mu_local_DG) - 3 * mu_local_DG * (
+    return compute_stress(e, lmbda_local_DG, mu_local_DG) - 3 * mu_local_DG * (
             3 * mu_local_DG / (3 * mu_local_DG + C_linear_h_local_DG) - beta) * fe.inner(
         N_elas, e) * N_elas - 2 * mu_local_DG * beta * fe.dev(e)
 
@@ -59,7 +71,7 @@ def sigma_v(strain, lmbda_local_DG: fe.Function, mu_local_DG: fe.Function) -> fe
     Returns:
     - Von-Mises Stress
     """
-    s = fe.dev(sigma(strain, lmbda_local_DG, mu_local_DG))
+    s = fe.dev(compute_stress(strain, lmbda_local_DG, mu_local_DG))
     return fe.sqrt(3 / 2. * fe.inner(s, s))
 
 

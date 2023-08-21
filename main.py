@@ -276,7 +276,7 @@ ppos = lambda x: (x + abs(x)) / 2.
 def proj_sig(deps, old_sig, old_p, sig_0_local, C_linear_h_local, mu_local, lmbda_local_DG, mu_local_DG):
     # update stress from change in strain (deps)
     sig_n = as_3D_tensor(old_sig)
-    sig_elas = sig_n + sigma(deps, lmbda_local_DG, mu_local_DG)
+    sig_elas = sig_n + compute_stress(deps, lmbda_local_DG, mu_local_DG)
 
     # trial stress
     s = fe.dev(sig_elas)
