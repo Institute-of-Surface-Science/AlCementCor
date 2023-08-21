@@ -189,6 +189,170 @@ def proj_sig(deps, old_sig, old_p, sig_0_local, C_linear_h_local, mu_local, lmbd
         beta, dp, sig_hyd
 
 
+class LinearElastoPlasticIntegrator:
+    def __init__(self, model: 'SimulationModel'):
+        self.model = model
+        # todo: make settable
+        self.results_file = self.setup_results_file("plasticity_results.xdmf")
+
+        # todo: make settable
+        self.max_iters, self.tolerance = 10, 1e-8  # Newton-Raphson procedure parameters
+        self.time_step = self.model.simulation_config._simulation_config.integration_time_limit / self.model.simulation_config._simulation_config.total_timesteps
+
+        self.time_controller = None
+        self.time = None
+        self.displacement_over_time = None
+        self.mean_stress_over_time = None
+        self.displacement_list = None
+        self.max_stress_over_time = None
+
+    def setup_results_file(self, filename: str):
+        results_file = fe.XDMFFile(filename)
+        results_file.parameters["flush_output"] = True
+        results_file.parameters["functions_share_mesh"] = True
+        return results_file
+
+    def run_time_integration(self):
+        # Initialization
+        self.initialize_time_variables()
+        self.time_controller = PITimeController(self.time_step, 1e-2 * self.tolerance)
+
+        # Time-stepping loop
+        iteration = 0
+        while self.time < self.model.simulation_config._simulation_config.integration_time_limit:
+            iteration += 1
+            self.time_step_integration(self.model.boundary.conditions, self.model.boundary.bc, self.model.boundary.bc_iter, self.model.local_initial_stress, self.model.local_linear_hardening, self.model.local_shear_modulus, self.max_iters, self.tolerance, self.results_file, self.model.l_x, self.model.l_y, iteration)
+            print(f"Step: {iteration}, time: {self.time} s")
+            print(f"displacement: {self.model.strain_rate.values()[0] * self.time} mm")
+
+            self.displacement_over_time += [(np.abs(self.model.u(self.model.l_x / 2, self.model.l_y)[1]) / self.model.l_y, self.time)]
+
+    def initialize_time_variables(self):
+        self.time = 0
+        self.displacement_over_time = [(0, 0)]
+        self.max_stress_over_time = [0]
+        self.mean_stress_over_time = [0]
+        self.displacement_list = [0]
+
+    def time_step_integration(self, conditions, bc, bc_iter, local_initial_stress, local_linear_hardening,
+                              local_shear_modulus, max_iters, tolerance, results_file, l_x, l_y, iteration):
+        self.time += self.time_controller.time_step
+        for condition in conditions:
+            condition.update_time(self.time_controller.time_step)
+
+        A, Res = fe.assemble_system(self.model.newton_lhs, self.model.newton_rhs, bc)
+
+        newton_res_norm, plastic_strain_update = self.run_newton_raphson(
+            A, Res, self.model.newton_lhs, self.model.newton_rhs, bc_iter, self.model.du, self.model.Du,
+            self.model.sig_old, self.model.p,
+            local_initial_stress, local_linear_hardening,
+            local_shear_modulus, self.model.lmbda_local_DG, self.model.mu_local_DG, self.model.sig, self.model.n_elas,
+            self.model.beta,
+            self.model.sig_hyd, self.model.W, self.model.W0, self.model.dxm, max_iters, tolerance)
+
+        if newton_res_norm > 1 or np.isnan(newton_res_norm):
+            raise ValueError("ERROR: Calculation diverged!")
+
+        self.update_and_store_results(
+            iteration, self.model.Du, plastic_strain_update, self.model.sig, self.model.sig_old, self.model.sig_hyd,
+            self.model.sig_hyd_avg,
+            self.model.p, self.model.W0, self.model.dxm, self.model.P0, self.model.u, l_x, l_y, self.time, results_file,
+            self.max_stress_over_time,
+            self.mean_stress_over_time, self.displacement_list
+        )
+
+        self.time_controller.update(newton_res_norm)
+
+    def update_and_store_results(self, i, Du, dp_, sig, sig_old, sig_hyd, sig_hyd_avg, p, W0, dxm, P0, u, l_x, l_y,
+                                 time,
+                                 file_results, stress_max_t, stress_mean_t, disp_t):
+        # update displacement
+        u.assign(u + Du)
+        # update plastic strain
+        p.assign(p + local_project(dp_, W0, dxm))
+
+        # update stress fields
+        sig_old.assign(sig)
+        sig_hyd_avg.assign(fe.project(sig_hyd, P0))
+
+        # # s11, s12, s21, s22 = sig.split(deepcopy=True)
+        # # avg_stress_y = np.average(s22.vector()[:])
+        # # avg_stress = np.average(sig.vector()[:])
+        sig_n = as_3D_tensor(sig)
+        s = fe.dev(sig_n)
+
+        # calculate the von-mises equivalent stress
+        sig_eq = fe.sqrt(3 / 2. * fe.inner(s, s))
+        sig_eq_p = local_project(sig_eq, P0, dxm)
+
+        if i % 10 == 0:
+            plot(i, u, sig_eq_p)
+
+        # calculate and project the von-mises stress for later use
+        stress_max_t.extend([np.abs(np.amax(sig_eq_p.vector()[:]))])
+        stress_mean_t.extend([np.abs(np.mean(sig_eq_p.vector()[:]))])
+
+        # append the y-displacement at the center of the bar
+        disp_t.append(u(l_x / 2, l_y)[1])
+
+        file_results.write(u, time)
+        p_avg = fe.Function(P0, name="Plastic strain")
+        p_avg.assign(fe.project(p, P0))
+        file_results.write(p_avg, time)
+
+    def check_convergence(self, nRes, nRes0, tol, niter, Nitermax):
+        return niter == 0 or (nRes0 > 0 and nRes / nRes0 > tol and niter < Nitermax)
+
+    def run_newton_raphson(self, system_matrix, residual, newton_form, residual_form, boundary_conditions,
+                           solution_change, total_change, old_stress, hydrostatic_pressure, local_initial_stress,
+                           local_linear_hardening, local_shear_modulus, local_lame_first, local_shear_modulus_dg,
+                           stress, elastic_strain, back_stress, hydrostatic_stress, function_space, null_space,
+                           dx_measure, max_iterations, tolerance):
+        """
+        Solve a nonlinear problem using the Newton-Raphson method.
+        """
+
+        # Initial residual norm
+        initial_residual_norm = residual.norm("l2")
+
+        # Initialize iteration counter and current residual norm
+        iteration_counter = 0
+        current_residual_norm = initial_residual_norm
+
+        # Start iterations
+        while iteration_counter == 0 or (
+                initial_residual_norm > 0 and current_residual_norm / initial_residual_norm > tolerance and iteration_counter < max_iterations):
+            # Solve the linear system
+            fe.solve(system_matrix, solution_change.vector(), residual, "mumps")
+
+            # Update solution
+            total_change.assign(total_change + solution_change)
+            strain_change = compute_strain_tensor(total_change)
+
+            # Project the new stress
+            stress_update, elastic_strain_update, back_stress_update, pressure_change, hydrostatic_stress_update = proj_sig(
+                strain_change, old_stress, hydrostatic_pressure, local_initial_stress, local_linear_hardening,
+                local_shear_modulus, local_lame_first, local_shear_modulus_dg)
+
+            # Update field values
+            local_project(stress_update, function_space, dx_measure, stress)
+            local_project(elastic_strain_update, function_space, dx_measure, elastic_strain)
+            local_project(back_stress_update, null_space, dx_measure, back_stress)
+            hydrostatic_stress.assign(local_project(hydrostatic_stress_update, null_space, dx_measure))
+
+            # Assemble system
+            system_matrix, residual = fe.assemble_system(newton_form, residual_form, boundary_conditions)
+
+            # Update residual norm
+            current_residual_norm = residual.norm("l2")
+            print(f"Residual: {current_residual_norm}")
+
+            # Increment iteration counter
+            iteration_counter += 1
+
+        return current_residual_norm, pressure_change
+
+
 class LinearElastoPlasticModel:
     def __init__(self, config_file: str):
         self._simulation_config = LinearElastoPlasticConfig(config_file)
@@ -374,170 +538,6 @@ class LinearElastoPlasticModel:
     @property
     def simulation_config(self) -> 'SimulationConfig':
         return self._simulation_config
-
-
-class LinearElastoPlasticIntegrator:
-    def __init__(self, model: 'SimulationModel'):
-        self.model = model
-        # todo: make settable
-        self.results_file = self.setup_results_file("plasticity_results.xdmf")
-
-        # todo: make settable
-        self.max_iters, self.tolerance = 10, 1e-8  # Newton-Raphson procedure parameters
-        self.time_step = self.model.simulation_config._simulation_config.integration_time_limit / self.model.simulation_config._simulation_config.total_timesteps
-
-        self.time_controller = None
-        self.time = None
-        self.displacement_over_time = None
-        self.mean_stress_over_time = None
-        self.displacement_list = None
-        self.max_stress_over_time = None
-
-    def setup_results_file(self, filename: str):
-        results_file = fe.XDMFFile(filename)
-        results_file.parameters["flush_output"] = True
-        results_file.parameters["functions_share_mesh"] = True
-        return results_file
-
-    def run_time_integration(self):
-        # Initialization
-        self.initialize_time_variables()
-        self.time_controller = PITimeController(self.time_step, 1e-2 * self.tolerance)
-
-        # Time-stepping loop
-        iteration = 0
-        while self.time < self.model.simulation_config._simulation_config.integration_time_limit:
-            iteration += 1
-            self.time_step_integration(self.model.boundary.conditions, self.model.boundary.bc, self.model.boundary.bc_iter, self.model.local_initial_stress, self.model.local_linear_hardening, self.model.local_shear_modulus, self.max_iters, self.tolerance, self.results_file, self.model.l_x, self.model.l_y, iteration)
-            print(f"Step: {iteration}, time: {self.time} s")
-            print(f"displacement: {self.model.strain_rate.values()[0] * self.time} mm")
-
-            self.displacement_over_time += [(np.abs(self.model.u(self.model.l_x / 2, self.model.l_y)[1]) / self.model.l_y, self.time)]
-
-    def initialize_time_variables(self):
-        self.time = 0
-        self.displacement_over_time = [(0, 0)]
-        self.max_stress_over_time = [0]
-        self.mean_stress_over_time = [0]
-        self.displacement_list = [0]
-
-    def time_step_integration(self, conditions, bc, bc_iter, local_initial_stress, local_linear_hardening,
-                              local_shear_modulus, max_iters, tolerance, results_file, l_x, l_y, iteration):
-        self.time += self.time_controller.time_step
-        for condition in conditions:
-            condition.update_time(self.time_controller.time_step)
-
-        A, Res = fe.assemble_system(self.model.newton_lhs, self.model.newton_rhs, bc)
-
-        newton_res_norm, plastic_strain_update = self.run_newton_raphson(
-            A, Res, self.model.newton_lhs, self.model.newton_rhs, bc_iter, self.model.du, self.model.Du,
-            self.model.sig_old, self.model.p,
-            local_initial_stress, local_linear_hardening,
-            local_shear_modulus, self.model.lmbda_local_DG, self.model.mu_local_DG, self.model.sig, self.model.n_elas,
-            self.model.beta,
-            self.model.sig_hyd, self.model.W, self.model.W0, self.model.dxm, max_iters, tolerance)
-
-        if newton_res_norm > 1 or np.isnan(newton_res_norm):
-            raise ValueError("ERROR: Calculation diverged!")
-
-        self.update_and_store_results(
-            iteration, self.model.Du, plastic_strain_update, self.model.sig, self.model.sig_old, self.model.sig_hyd,
-            self.model.sig_hyd_avg,
-            self.model.p, self.model.W0, self.model.dxm, self.model.P0, self.model.u, l_x, l_y, self.time, results_file,
-            self.max_stress_over_time,
-            self.mean_stress_over_time, self.displacement_list
-        )
-
-        self.time_controller.update(newton_res_norm)
-
-    def update_and_store_results(self, i, Du, dp_, sig, sig_old, sig_hyd, sig_hyd_avg, p, W0, dxm, P0, u, l_x, l_y,
-                                 time,
-                                 file_results, stress_max_t, stress_mean_t, disp_t):
-        # update displacement
-        u.assign(u + Du)
-        # update plastic strain
-        p.assign(p + local_project(dp_, W0, dxm))
-
-        # update stress fields
-        sig_old.assign(sig)
-        sig_hyd_avg.assign(fe.project(sig_hyd, P0))
-
-        # # s11, s12, s21, s22 = sig.split(deepcopy=True)
-        # # avg_stress_y = np.average(s22.vector()[:])
-        # # avg_stress = np.average(sig.vector()[:])
-        sig_n = as_3D_tensor(sig)
-        s = fe.dev(sig_n)
-
-        # calculate the von-mises equivalent stress
-        sig_eq = fe.sqrt(3 / 2. * fe.inner(s, s))
-        sig_eq_p = local_project(sig_eq, P0, dxm)
-
-        if i % 10 == 0:
-            plot(i, u, sig_eq_p)
-
-        # calculate and project the von-mises stress for later use
-        stress_max_t.extend([np.abs(np.amax(sig_eq_p.vector()[:]))])
-        stress_mean_t.extend([np.abs(np.mean(sig_eq_p.vector()[:]))])
-
-        # append the y-displacement at the center of the bar
-        disp_t.append(u(l_x / 2, l_y)[1])
-
-        file_results.write(u, time)
-        p_avg = fe.Function(P0, name="Plastic strain")
-        p_avg.assign(fe.project(p, P0))
-        file_results.write(p_avg, time)
-
-    def check_convergence(self, nRes, nRes0, tol, niter, Nitermax):
-        return niter == 0 or (nRes0 > 0 and nRes / nRes0 > tol and niter < Nitermax)
-
-    def run_newton_raphson(self, system_matrix, residual, newton_form, residual_form, boundary_conditions,
-                           solution_change, total_change, old_stress, hydrostatic_pressure, local_initial_stress,
-                           local_linear_hardening, local_shear_modulus, local_lame_first, local_shear_modulus_dg,
-                           stress, elastic_strain, back_stress, hydrostatic_stress, function_space, null_space,
-                           dx_measure, max_iterations, tolerance):
-        """
-        Solve a nonlinear problem using the Newton-Raphson method.
-        """
-
-        # Initial residual norm
-        initial_residual_norm = residual.norm("l2")
-
-        # Initialize iteration counter and current residual norm
-        iteration_counter = 0
-        current_residual_norm = initial_residual_norm
-
-        # Start iterations
-        while iteration_counter == 0 or (
-                initial_residual_norm > 0 and current_residual_norm / initial_residual_norm > tolerance and iteration_counter < max_iterations):
-            # Solve the linear system
-            fe.solve(system_matrix, solution_change.vector(), residual, "mumps")
-
-            # Update solution
-            total_change.assign(total_change + solution_change)
-            strain_change = compute_strain_tensor(total_change)
-
-            # Project the new stress
-            stress_update, elastic_strain_update, back_stress_update, pressure_change, hydrostatic_stress_update = proj_sig(
-                strain_change, old_stress, hydrostatic_pressure, local_initial_stress, local_linear_hardening,
-                local_shear_modulus, local_lame_first, local_shear_modulus_dg)
-
-            # Update field values
-            local_project(stress_update, function_space, dx_measure, stress)
-            local_project(elastic_strain_update, function_space, dx_measure, elastic_strain)
-            local_project(back_stress_update, null_space, dx_measure, back_stress)
-            hydrostatic_stress.assign(local_project(hydrostatic_stress_update, null_space, dx_measure))
-
-            # Assemble system
-            system_matrix, residual = fe.assemble_system(newton_form, residual_form, boundary_conditions)
-
-            # Update residual norm
-            current_residual_norm = residual.norm("l2")
-            print(f"Residual: {current_residual_norm}")
-
-            # Increment iteration counter
-            iteration_counter += 1
-
-        return current_residual_norm, pressure_change
 
 
 class LinearElastoPlasticConfig:
