@@ -354,6 +354,11 @@ class LinearElastoPlasticIntegrator:
 
 
 class LinearElastoPlasticModel:
+    FUNCTION_SPACE_DG = "DG"
+    FUNCTION_SPACE_CG = "CG"
+    FUNCTION_SPACE_QUADRATURE = "Quadrature"
+    DEFAULT_DIMENSION = 4
+
     def __init__(self, config_file: str):
         self._simulation_config = LinearElastoPlasticConfig(config_file)
 
@@ -424,7 +429,9 @@ class LinearElastoPlasticModel:
 
 
     # assign local values to the layers
-    def assign_layer_values(self, inner_value, outer_value):
+    def assign_layer_values(self, inner_value: float, outer_value: float) -> 'fe.Function':
+        """Assign values based on layers."""
+
         class set_layer(fe.UserExpression):
             def __init__(self, inner_value, outer_value, simulation_config, **kwargs):
                 self.inner = inner_value
@@ -444,7 +451,7 @@ class LinearElastoPlasticModel:
         layer = set_layer(inner_value, outer_value, self.simulation_config._simulation_config)
         return fe.interpolate(layer, self.W0)
 
-    def _setup(self):
+    def _setup(self) -> None:
         self._setup_function_spaces()
         self._setup_displacement_functions()
         self._setup_stress_functions()
@@ -452,7 +459,7 @@ class LinearElastoPlasticModel:
         self._setup_local_properties()
         self._setup_newton_equations()
 
-    def _setup_function_spaces(self):
+    def _setup_function_spaces(self) -> None:
         """Set up the function spaces required for the simulation."""
         self.deg_stress = self._simulation_config._simulation_config.finite_element_degree_stress
         self.V = fe.VectorFunctionSpace(self._mesh, "CG", self._simulation_config._simulation_config.finite_element_degree_u)
@@ -520,10 +527,12 @@ class LinearElastoPlasticModel:
 
     @property
     def mesh(self) -> 'MeshType':
+        """Provide access to mesh."""
         return self._mesh
 
     @property
     def simulation_config(self) -> 'SimulationConfig':
+        """Provide access to simulation configuration."""
         return self._simulation_config
 
 
