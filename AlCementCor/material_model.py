@@ -423,30 +423,27 @@ class LinearElastoPlasticModel:
         self.local_linear_hardening = self.assign_layer_values(self._simulation_config.substrate_properties.linear_isotropic_hardening,
                                                                self._simulation_config.layer_properties.linear_isotropic_hardening)
 
-
-
-    # assign local values to the layers
     def assign_layer_values(self, inner_value: float, outer_value: float) -> 'fe.Function':
-        """Assign values based on layers."""
+        """Assign values based on the given layer widths and return interpolated function."""
 
-        class set_layer(fe.UserExpression):
-            def __init__(self, inner_value, outer_value, simulation_config, **kwargs):
-                self.inner = inner_value
-                self.outer = outer_value
-                self.width = simulation_config.width
+        class SetLayer(fe.UserExpression):
+            """User-defined expression for FEniCS to set layer values based on width."""
+
+            def __init__(self, width, **kwargs):
                 super().__init__(**kwargs)
+                self.width = width
 
             def eval(self, value, x):
-                if x[0] > self.width:
-                    value[0] = self.outer
-                else:
-                    value[0] = self.inner
+                """Evaluate the function based on position and set values accordingly."""
+                value[0] = outer_value if x[0] > self.width else inner_value
 
             def value_shape(self):
+                """Return the shape of the value (scalar in this case)."""
                 return ()
 
-        layer = set_layer(inner_value, outer_value, self.simulation_config._simulation_config)
-        return fe.interpolate(layer, self.W0)
+        # Instantiate the user expression and interpolate
+        layer_expr = SetLayer(self.simulation_config._simulation_config.width)
+        return fe.interpolate(layer_expr, self.W0)
 
     def _setup(self) -> None:
         self._setup_function_spaces()
