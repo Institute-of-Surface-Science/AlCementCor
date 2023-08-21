@@ -1,19 +1,11 @@
 import ufl
 import fenics as fe
-import matplotlib.pyplot as plt
-import numpy as np
 import warnings
 import argparse
 from ffc.quadrature.deprecation import QuadratureRepresentationDeprecationWarning
-from scipy.interpolate import RegularGridInterpolator
 
-from AlCementCor.bnd import *
 from AlCementCor.info import *
-from AlCementCor.input_file import *
 from AlCementCor.material_model import *
-from AlCementCor.material_properties import *
-from AlCementCor.interpolate import *
-from AlCementCor.postproc import plot_strain_displacement, plot_movement, plot_displacement
 
 fe.parameters["form_compiler"]["representation"] = 'quadrature'
 warnings.simplefilter("once", QuadratureRepresentationDeprecationWarning)
