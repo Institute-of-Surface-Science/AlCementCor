@@ -200,44 +200,6 @@ def assign_layer_values(inner_value, outer_value, W0, simulation_config):
     layer = set_layer(inner_value, outer_value, simulation_config)
     return fe.interpolate(layer, W0)
 
-
-# def update_and_store_results(i, Du, dp_, sig, sig_old, sig_hyd, sig_hyd_avg, p, W0, dxm, P0, u, l_x, l_y, time,
-#                              file_results, stress_max_t, stress_mean_t, disp_t):
-#     # update displacement
-#     u.assign(u + Du)
-#     # update plastic strain
-#     p.assign(p + local_project(dp_, W0, dxm))
-#
-#     # update stress fields
-#     sig_old.assign(sig)
-#     sig_hyd_avg.assign(fe.project(sig_hyd, P0))
-#
-#     # # s11, s12, s21, s22 = sig.split(deepcopy=True)
-#     # # avg_stress_y = np.average(s22.vector()[:])
-#     # # avg_stress = np.average(sig.vector()[:])
-#     sig_n = as_3D_tensor(sig)
-#     s = fe.dev(sig_n)
-#
-#     # calculate the von-mises equivalent stress
-#     sig_eq = fe.sqrt(3 / 2. * fe.inner(s, s))
-#     sig_eq_p = local_project(sig_eq, P0, dxm)
-#
-#     if i % 10 == 0:
-#         plot(i, u, sig_eq_p)
-#
-#     # calculate and project the von-mises stress for later use
-#     stress_max_t.extend([np.abs(np.amax(sig_eq_p.vector()[:]))])
-#     stress_mean_t.extend([np.abs(np.mean(sig_eq_p.vector()[:]))])
-#
-#     # append the y-displacement at the center of the bar
-#     disp_t.append(u(l_x / 2, l_y)[1])
-#
-#     file_results.write(u, time)
-#     p_avg = fe.Function(P0, name="Plastic strain")
-#     p_avg.assign(fe.project(p, P0))
-#     file_results.write(p_avg, time)
-
-
 def cli_interface():
     parser = argparse.ArgumentParser(description=logo(), formatter_class=PreserveWhiteSpaceArgParseFormatter)
 
@@ -284,44 +246,10 @@ def main() -> None:
     local_linear_hardening = assign_layer_values(substrate_props.linear_isotropic_hardening,
                                                  layer_props.linear_isotropic_hardening, W0, config)
 
-    model.run_time_integration(time_step, conditions, bc, bc_iter, local_initial_stress,
-                             local_linear_hardening, local_shear_modulus, max_iters, tolerance, results_file, l_x, l_y)
+    main_loop = LinearElastoPlasticIntegrator(model)
 
-    # Initialize result and time step lists
-    # displacement_over_time = [(0, 0)]
-    # max_stress_over_time = [0]
-    # mean_stress_over_time = [0]
-    # displacement_list = [0]
-    #
-    # time = 0
-    # iteration = 0
-    #
-    # time_controller = PITimeController(time_step, 1e-2 * tolerance)
-    #
-    # while time < config.integration_time_limit:
-    #     time += time_step
-    #     iteration += 1
-    #     for condition in conditions:
-    #         condition.update_time(time_step)
-    #     A, Res = fe.assemble_system(model.newton_lhs, model.newton_rhs, bc)
-    #     print(f"Step: {iteration + 1}, time: {time} s")
-    #     print(f"displacement: {model.strain_rate.values()[0] * time} mm")
-    #
-    #     newton_res_norm, plastic_strain_update = run_newton_raphson(
-    #         A, Res, model.newton_lhs, model.newton_rhs, bc_iter, model.du, model.Du, model.sig_old, model.p, local_initial_stress, local_linear_hardening,
-    #         local_shear_modulus, model.lmbda_local_DG, model.mu_local_DG, model.sig, model.n_elas, model.beta, model.sig_hyd, model.W, model.W0, model.dxm, max_iters,
-    #         tolerance)
-    #
-    #     if newton_res_norm > 1 or np.isnan(newton_res_norm):
-    #         raise ValueError("ERROR: Calculation diverged!")
-    #
-    #     update_and_store_results(
-    #         iteration, model.Du, plastic_strain_update, model.sig, model.sig_old, model.sig_hyd, model.sig_hyd_avg, model.p, model.W0, model.dxm, model.P0, model.u, l_x, l_y, time, results_file, max_stress_over_time, mean_stress_over_time, displacement_list
-    #     )
-    #
-    #     displacement_over_time += [(np.abs(model.u(l_x / 2, l_y)[1]) / l_y, time)]
-    #
-    #     time_step = time_controller.update(newton_res_norm)
+    main_loop.run_time_integration(time_step, conditions, bc, bc_iter, local_initial_stress,
+                             local_linear_hardening, local_shear_modulus, max_iters, tolerance, results_file, l_x, l_y)
 
 
 if __name__ == "__main__":

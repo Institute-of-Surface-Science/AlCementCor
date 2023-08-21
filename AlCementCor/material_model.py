@@ -80,7 +80,7 @@ def compute_tangential_stress(strain_tensor, normal_elasticity: fe.Function, she
 
     # Compute contributions to the tangential stress
     normal_elasticity_contribution = 3 * shear_modulus * (
-                3 * shear_modulus / (3 * shear_modulus + linear_hardening_coeff) - beta_coeff)
+            3 * shear_modulus / (3 * shear_modulus + linear_hardening_coeff) - beta_coeff)
     normal_elasticity_contribution *= fe.inner(three_dim_normal_elas, strain_tensor) * three_dim_normal_elas
 
     deviatoric_contribution = 2 * shear_modulus * beta_coeff * fe.dev(strain_tensor)
@@ -119,7 +119,6 @@ def ppos(x):
     Returns a value only positive for x > 0.
     """
     return (x + abs(x)) / 2.
-
 
 
 # https://www.dynasupport.com/tutorial/computational-plasticity/radial-return
@@ -184,7 +183,6 @@ def proj_sig(deps, old_sig, old_p, sig_0_local, C_linear_h_local, mu_local, lmbd
         beta, dp, sig_hyd
 
 
-
 class LinearElastoPlasticModel:
     def __init__(self, simulation_config: 'SimulationConfig', mesh: 'MeshType',
                  substrate_properties: 'MaterialProperties', layer_properties: 'MaterialProperties') -> None:
@@ -244,14 +242,6 @@ class LinearElastoPlasticModel:
         self.newton_lhs = None
         self.newton_rhs = None
 
-        # time integration
-        self.time_controller = None
-        self.time = None
-        self.displacement_over_time = None
-        self.mean_stress_over_time = None
-        self.displacement_list = None
-        self.max_stress_over_time = None
-
         self._setup()
 
     def _setup(self):
@@ -299,10 +289,12 @@ class LinearElastoPlasticModel:
     def _setup_local_properties(self):
         """Setup local properties of the model."""
         self.mu_local_DG = fe.Function(self.DG)
-        self._assign_local_values(self._substrate_properties.shear_modulus, self._layer_properties.shear_modulus, self.mu_local_DG)
+        self._assign_local_values(self._substrate_properties.shear_modulus, self._layer_properties.shear_modulus,
+                                  self.mu_local_DG)
 
         self.lmbda_local_DG = fe.Function(self.DG)
-        self._assign_local_values(self._substrate_properties.first_lame_parameter, self._layer_properties.first_lame_parameter,
+        self._assign_local_values(self._substrate_properties.first_lame_parameter,
+                                  self._layer_properties.first_lame_parameter,
                                   self.lmbda_local_DG)
 
         self.local_linear_hardening_DG = fe.Function(self.DG)
@@ -319,10 +311,31 @@ class LinearElastoPlasticModel:
 
     def _setup_newton_equations(self):
         """Setup Newton equations for the model."""
-        self.newton_lhs = fe.inner(compute_strain_tensor(self.v), compute_tangential_stress(compute_strain_tensor(self.u_), self.n_elas, self.mu_local_DG,
-                                                           self.local_linear_hardening_DG, self.beta,
-                                                           self.lmbda_local_DG)) * self.dxm
+        self.newton_lhs = fe.inner(compute_strain_tensor(self.v),
+                                   compute_tangential_stress(compute_strain_tensor(self.u_), self.n_elas,
+                                                             self.mu_local_DG,
+                                                             self.local_linear_hardening_DG, self.beta,
+                                                             self.lmbda_local_DG)) * self.dxm
         self.newton_rhs = -fe.inner(compute_strain_tensor(self.u_), as_3D_tensor(self.sig)) * self.dxm
+
+    @property
+    def mesh(self) -> 'MeshType':
+        return self._mesh
+
+    @property
+    def simulation_config(self) -> 'SimulationConfig':
+        return self._simulation_config
+
+
+class LinearElastoPlasticIntegrator:
+    def __init__(self, model: 'SimulationModel'):
+        self.model = model
+        self.time_controller = None
+        self.time = None
+        self.displacement_over_time = None
+        self.mean_stress_over_time = None
+        self.displacement_list = None
+        self.max_stress_over_time = None
 
     def run_time_integration(self, initial_time_step, conditions, bc, bc_iter, local_initial_stress,
                              local_linear_hardening, local_shear_modulus, max_iters, tolerance, results_file, l_x, l_y):
@@ -332,16 +345,14 @@ class LinearElastoPlasticModel:
 
         # Time-stepping loop
         iteration = 0
-        while self.time < self.simulation_config.integration_time_limit:
-            iteration +=1
+        while self.time < self.model.simulation_config.integration_time_limit:
+            iteration += 1
             self.time_step_integration(conditions, bc, bc_iter, local_initial_stress, local_linear_hardening,
                                        local_shear_modulus, max_iters, tolerance, results_file, l_x, l_y, iteration)
             print(f"Step: {iteration}, time: {self.time} s")
-            print(f"displacement: {self.strain_rate.values()[0] * self.time} mm")
+            print(f"displacement: {self.model.strain_rate.values()[0] * self.time} mm")
 
-
-            self.displacement_over_time += [(np.abs(self.u(l_x / 2, l_y)[1]) / l_y, self.time)]
-
+            self.displacement_over_time += [(np.abs(self.model.u(l_x / 2, l_y)[1]) / l_y, self.time)]
 
     def initialize_time_variables(self):
         self.time = 0
@@ -356,28 +367,27 @@ class LinearElastoPlasticModel:
         for condition in conditions:
             condition.update_time(self.time_controller.time_step)
 
-        A, Res = fe.assemble_system(self.newton_lhs, self.newton_rhs, bc)
-
+        A, Res = fe.assemble_system(self.model.newton_lhs, self.model.newton_rhs, bc)
 
         newton_res_norm, plastic_strain_update = self.run_newton_raphson(
-            A, Res, self.newton_lhs, self.newton_rhs, bc_iter, self.du, self.Du, self.sig_old, self.p,
+            A, Res, self.model.newton_lhs, self.model.newton_rhs, bc_iter, self.model.du, self.model.Du, self.model.sig_old, self.model.p,
             local_initial_stress, local_linear_hardening,
-            local_shear_modulus, self.lmbda_local_DG, self.mu_local_DG, self.sig, self.n_elas, self.beta,
-            self.sig_hyd, self.W, self.W0, self.dxm, max_iters, tolerance)
+            local_shear_modulus, self.model.lmbda_local_DG, self.model.mu_local_DG, self.model.sig, self.model.n_elas, self.model.beta,
+            self.model.sig_hyd, self.model.W, self.model.W0, self.model.dxm, max_iters, tolerance)
 
         if newton_res_norm > 1 or np.isnan(newton_res_norm):
             raise ValueError("ERROR: Calculation diverged!")
 
         self.update_and_store_results(
-            iteration, self.Du, plastic_strain_update, self.sig, self.sig_old, self.sig_hyd, self.sig_hyd_avg,
-            self.p, self.W0, self.dxm, self.P0, self.u, l_x, l_y, self.time, results_file, self.max_stress_over_time,
+            iteration, self.model.Du, plastic_strain_update, self.model.sig, self.model.sig_old, self.model.sig_hyd, self.model.sig_hyd_avg,
+            self.model.p, self.model.W0, self.model.dxm, self.model.P0, self.model.u, l_x, l_y, self.time, results_file, self.max_stress_over_time,
             self.mean_stress_over_time, self.displacement_list
         )
 
         self.time_controller.update(newton_res_norm)
 
-
-    def update_and_store_results(self, i, Du, dp_, sig, sig_old, sig_hyd, sig_hyd_avg, p, W0, dxm, P0, u, l_x, l_y, time,
+    def update_and_store_results(self, i, Du, dp_, sig, sig_old, sig_hyd, sig_hyd_avg, p, W0, dxm, P0, u, l_x, l_y,
+                                 time,
                                  file_results, stress_max_t, stress_mean_t, disp_t):
         # update displacement
         u.assign(u + Du)
@@ -464,12 +474,3 @@ class LinearElastoPlasticModel:
             iteration_counter += 1
 
         return current_residual_norm, pressure_change
-
-
-    @property
-    def mesh(self) -> 'MeshType':
-        return self._mesh
-
-    @property
-    def simulation_config(self) -> 'SimulationConfig':
-        return self._simulation_config
