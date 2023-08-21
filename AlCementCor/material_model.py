@@ -191,9 +191,7 @@ def proj_sig(deps, old_sig, old_p, sig_0_local, C_linear_h_local, mu_local, lmbd
 
 class LinearElastoPlasticModel:
     def __init__(self, config_file: str):
-        self._simulation_config, self._substrate_properties, self._layer_properties = self.load_simulation_config(
-            config_file)
-        summarize_and_print_config(self._simulation_config, [self._substrate_properties, self._layer_properties])
+        self._simulation_config = LinearElastoPlasticConfig(config_file)
 
         # todo: move to config file
         self.strain_rate = fe.Constant(0.000001)
@@ -247,166 +245,32 @@ class LinearElastoPlasticModel:
         self._setup()
 
         # Set up boundary conditions
-        self.bc, self.bc_iter, self.conditions = self.setup_displacement_bnd()
+        self._mesh, self.l_x, self.l_y = self.setup_geometry()
+        self.boundary = LinearElastoPlasticBnd(self._simulation_config, self.l_x, self.l_y, self.V)
 
         # Assign layer values
-        self.local_initial_stress = self.assign_layer_values(self._substrate_properties.yield_strength,
-                                                             self._layer_properties.yield_strength)
-        self.local_shear_modulus = self.assign_layer_values(self._substrate_properties.shear_modulus,
-                                                            self._layer_properties.shear_modulus)
-        self.local_linear_hardening = self.assign_layer_values(self._substrate_properties.linear_isotropic_hardening,
-                                                               self._layer_properties.linear_isotropic_hardening)
+        self.local_initial_stress = self.assign_layer_values(self._simulation_config._substrate_properties.yield_strength,
+                                                             self._simulation_config._layer_properties.yield_strength)
+        self.local_shear_modulus = self.assign_layer_values(self._simulation_config._substrate_properties.shear_modulus,
+                                                            self._simulation_config._layer_properties.shear_modulus)
+        self.local_linear_hardening = self.assign_layer_values(self._simulation_config._substrate_properties.linear_isotropic_hardening,
+                                                               self._simulation_config._layer_properties.linear_isotropic_hardening)
 
-    def determine_center_plane(self, result):
-        x_coordinates = result[ExternalInput.X.value]
-        y_coordinates = result[ExternalInput.Y.value]
-        z_coordinates = result[ExternalInput.Z.value]
-
-        # Extract the outside and inside point indices
-        outside_indices = result[ExternalInput.OUTSIDE_P.value]
-        inside_indices = result[ExternalInput.INSIDE_P.value]
-
-        def get_center_yz_points(indices, x_coordinates, y_coordinates, z_coordinates, tolerance=1e-3):
-            center_yz_points_per_timestep = []
-            for t in range(x_coordinates.shape[1]):
-                x_values_t = x_coordinates[indices, t]
-                y_values_t = y_coordinates[indices, t]
-                z_values_t = z_coordinates[indices, t]
-                center_x_t = np.median(x_values_t)
-                center_yz_points_t = [(x, y, z) for x, y, z in zip(x_values_t, y_values_t, z_values_t) if
-                                      abs(x - center_x_t) < tolerance]
-                if len(center_yz_points_t) != 3:
-                    print("missing points")
-                    exit(-1)
-                center_yz_points_per_timestep.append(center_yz_points_t)
-            return center_yz_points_per_timestep
-
-        center_yz_points_outside = get_center_yz_points(outside_indices, np.array(x_coordinates),
-                                                        np.array(y_coordinates), np.array(z_coordinates))
-        center_yz_points_inside = get_center_yz_points(inside_indices, np.array(x_coordinates), np.array(y_coordinates),
-                                                       np.array(z_coordinates))
-
-        return center_yz_points_outside, center_yz_points_inside
-
-    def load_simulation_config(self, file_name):
-        """Loads and initializes a SimulationConfig object from a JSON configuration file."""
-        simulation_config = SimulationConfig(file_name)
-        if simulation_config.field_input_file:
-            input_file = process_abaqus_input_file(simulation_config.field_input_file, plot=True)
-            simulation_config.width = input_file[ExternalInput.WIDTH.value]
-            simulation_config.length = input_file[ExternalInput.LENGTH.value]
-
-            center_yz_points_outside, center_yz_points_inside = self.determine_center_plane(input_file)
-
-            coordinates_on_center_plane = []
-            for outside_points_t, inside_points_t in zip(center_yz_points_outside, center_yz_points_inside):
-                combined_points_t = outside_points_t + inside_points_t
-                coordinates_on_center_plane.append(combined_points_t)
-
-            displacement_x = input_file[ExternalInput.DISPLACEMENTX.value]
-            displacement_y = input_file[ExternalInput.DISPLACEMENTY.value]
-            displacement_z = input_file[ExternalInput.DISPLACEMENTZ.value]
-
-            plot_strain_displacement(input_file)
-
-            x_coordinates = input_file[ExternalInput.X.value]
-            y_coordinates = input_file[ExternalInput.Y.value]
-            z_coordinates = input_file[ExternalInput.Z.value]
-
-            displacement_x_center, displacement_y_center = interpolate_displacements(
-                coordinates_on_center_plane, x_coordinates, y_coordinates, z_coordinates, displacement_x,
-                displacement_y,
-                displacement_z)
-
-            # Call the plot function
-            plot_displacement(displacement_x_center, displacement_y_center)
-
-            # Call the plot function
-            plot_movement(coordinates_on_center_plane, displacement_x_center, displacement_y_center)
-
-            # # Assuming time_values are extracted from your data
-            # time_values = result[ExternalInput.TIME.value]
-            #
-            # # Create an InPlaneInterpolator instance for both in-plane displacements
-            # in_plane_interpolator = InPlaneInterpolator(time_values, coordinates_on_center_plane, displacement_x_center,
-            #                                             displacement_y_center)
-            #
-            # # Now you can query this interpolator for displacements at any time and point in the plane
-            # query_time = 25.0  # for example
-            # query_point = (5.0, 2.0, 3.0)  # for example, assuming it's within the bounds of your data
-            # disp_at_query_time_and_point_1, disp_at_query_time_and_point_2 = in_plane_interpolator.get_displacement_at_point(
-            #     query_time, query_point)
-
-        substrate_properties = MaterialProperties('material_properties.json', simulation_config.material)
-        if simulation_config.use_two_material_layers:
-            layer_properties = MaterialProperties('material_properties.json', simulation_config.layer_material)
-        return simulation_config, substrate_properties, layer_properties
 
     def setup_geometry(self):
         """Sets up the geometry of the simulation, including layer thickness and mesh initialization."""
-        l_layer_x = self.simulation_config.layer_1_thickness if self.simulation_config.use_two_material_layers else 0.0
+        l_layer_x = self.simulation_config._simulation_config.layer_1_thickness if self._simulation_config._simulation_config.use_two_material_layers else 0.0
         l_layer_y = 0.0
-        l_x = self.simulation_config.width + l_layer_x
+        l_x = self.simulation_config._simulation_config.width + l_layer_x
         # todo: hardcode
         # multiplier_y = 3.0
         # l_y = multiplier_y * simulation_config.length + l_layer_y
-        l_y = self.simulation_config.length + l_layer_y
-        mesh = fe.RectangleMesh(fe.Point(0.0, 0.0), fe.Point(l_x, l_y), self.simulation_config.mesh_resolution_x,
-                                self.simulation_config.mesh_resolution_y)
+        l_y = self.simulation_config._simulation_config.length + l_layer_y
+        mesh = fe.RectangleMesh(fe.Point(0.0, 0.0), fe.Point(l_x, l_y), self.simulation_config._simulation_config.mesh_resolution_x,
+                                self.simulation_config._simulation_config.mesh_resolution_y)
         return mesh, l_x, l_y
 
-    def setup_displacement_bnd(self):
-        # Define boundary location conditions
-        def is_bottom_boundary(x, on_boundary):
-            return on_boundary and fe.near(x[1], 0.0)
 
-        def is_top_boundary(x, on_boundary):
-            return on_boundary and fe.near(x[1], self.l_y)
-
-        def is_left_boundary(x, on_boundary):
-            return on_boundary and fe.near(x[0], 0.0)
-
-        def is_right_boundary(x, on_boundary):
-            return on_boundary and fe.near(x[0], self.l_x)
-
-        # Define the boundary conditions
-        # bnd_length = l_x
-        # displacement_func = LinearDisplacementX((-C_strain_rate, 0.0), bnd_length)
-        # displacement_func = ConstantStrainRate((-C_strain_rate, 0.0))
-        # bottom_condition = FunctionDisplacementBoundaryCondition(V, is_bottom_boundary, displacement_func)
-        # bottom_condition = NoDisplacementBoundaryCondition(V, is_bottom_boundary)
-        # if two_layers:
-        #     bottom_condition = ConstantStrainRateBoundaryCondition(V, is_bottom_boundary, -C_strain_rate)
-        # else:
-        #     bottom_condition = NoDisplacementBoundaryCondition(V, is_bottom_boundary)
-
-        # top_condition = ConstantStrainRateBoundaryCondition(V, is_top_boundary, C_strain_rate)
-        # bnd_length = 100.0
-        # displacement_func = LinearDisplacementX(-C_strain_rate, bnd_length)
-        # displacement_func = ConstantStrainRate((-C_strain_rate, 0.0))
-        # top_condition = FunctionDisplacementBoundaryCondition(V, is_top_boundary, displacement_func)
-        # top_condition = NoDisplacementBoundaryCondition(V, is_top_boundary)
-
-        # bnd_length = l_y
-        # displacement_func = SinglePointDisplacement((0.0, 6.0), (-C_strain_rate, 0.0))
-        # displacement_func = ConstantStrainRate((-C_strain_rate, 0.0))
-        displacement_func = SquareStrainRate((-self.strain_rate, 0.0), 0.0, self.l_y)
-        left_condition = FunctionDisplacementBoundaryCondition(self.V, is_left_boundary, displacement_func)
-
-        # displacement_func = SinglePointDisplacement((4.2, 6.0), (-C_strain_rate, 0.0))
-        # displacement_func = ConstantStrainRate((-C_strain_rate, 0.0))
-        # right_condition = FunctionDisplacementBoundaryCondition(V, is_right_boundary, displacement_func)
-
-        # Create the conditions list
-        conditions = [left_condition]
-
-        # Generate the Dirichlet boundary conditions
-        bc = [condition.get_condition() for condition in conditions]
-
-        # Generate homogenized boundary conditions
-        bc_iter = [condition.get_homogenized_condition() for condition in conditions]
-
-        return bc, bc_iter, conditions
 
     # assign local values to the layers
     def assign_layer_values(self, inner_value, outer_value):
@@ -426,7 +290,7 @@ class LinearElastoPlasticModel:
             def value_shape(self):
                 return ()
 
-        layer = set_layer(inner_value, outer_value, self.simulation_config)
+        layer = set_layer(inner_value, outer_value, self.simulation_config._simulation_config)
         return fe.interpolate(layer, self.W0)
 
     def _setup(self):
@@ -439,8 +303,8 @@ class LinearElastoPlasticModel:
 
     def _setup_function_spaces(self):
         """Set up the function spaces required for the simulation."""
-        self.deg_stress = self._simulation_config.finite_element_degree_stress
-        self.V = fe.VectorFunctionSpace(self._mesh, "CG", self._simulation_config.finite_element_degree_u)
+        self.deg_stress = self._simulation_config._simulation_config.finite_element_degree_stress
+        self.V = fe.VectorFunctionSpace(self._mesh, "CG", self._simulation_config._simulation_config.finite_element_degree_u)
         self.DG = fe.FunctionSpace(self._mesh, "DG", 0)
         We = fe.VectorElement("Quadrature", self._mesh.ufl_cell(), degree=self.deg_stress, dim=4, quad_scheme='default')
         self.W = fe.FunctionSpace(self._mesh, We)
@@ -474,24 +338,24 @@ class LinearElastoPlasticModel:
     def _setup_local_properties(self):
         """Setup local properties of the model."""
         self.mu_local_DG = fe.Function(self.DG)
-        self._assign_local_values(self._substrate_properties.shear_modulus, self._layer_properties.shear_modulus,
+        self._assign_local_values(self._simulation_config._substrate_properties.shear_modulus, self._simulation_config._layer_properties.shear_modulus,
                                   self.mu_local_DG)
 
         self.lmbda_local_DG = fe.Function(self.DG)
-        self._assign_local_values(self._substrate_properties.first_lame_parameter,
-                                  self._layer_properties.first_lame_parameter,
+        self._assign_local_values(self._simulation_config._substrate_properties.first_lame_parameter,
+                                  self._simulation_config._layer_properties.first_lame_parameter,
                                   self.lmbda_local_DG)
 
         self.local_linear_hardening_DG = fe.Function(self.DG)
-        self._assign_local_values(self._substrate_properties.linear_isotropic_hardening,
-                                  self._layer_properties.linear_isotropic_hardening,
+        self._assign_local_values(self._simulation_config._substrate_properties.linear_isotropic_hardening,
+                                  self._simulation_config._layer_properties.linear_isotropic_hardening,
                                   self.local_linear_hardening_DG)
 
     def _assign_local_values(self, values: float, outer_values: float, local_DG: fe.Function) -> None:
         """Assign values based on the specified condition."""
         dofmap = self.DG.tabulate_dof_coordinates()[:]
         vec = np.full(dofmap.shape[0], values)
-        vec[dofmap[:, 0] > self._simulation_config.width] = outer_values
+        vec[dofmap[:, 0] > self._simulation_config._simulation_config.width] = outer_values
         local_DG.vector()[:] = vec
 
     def _setup_newton_equations(self):
@@ -520,7 +384,7 @@ class LinearElastoPlasticIntegrator:
 
         # todo: make settable
         self.max_iters, self.tolerance = 10, 1e-8  # Newton-Raphson procedure parameters
-        self.time_step = self.model.simulation_config.integration_time_limit / self.model.simulation_config.total_timesteps
+        self.time_step = self.model.simulation_config._simulation_config.integration_time_limit / self.model.simulation_config._simulation_config.total_timesteps
 
         self.time_controller = None
         self.time = None
@@ -542,9 +406,9 @@ class LinearElastoPlasticIntegrator:
 
         # Time-stepping loop
         iteration = 0
-        while self.time < self.model.simulation_config.integration_time_limit:
+        while self.time < self.model.simulation_config._simulation_config.integration_time_limit:
             iteration += 1
-            self.time_step_integration(self.model.conditions, self.model.bc, self.model.bc_iter, self.model.local_initial_stress, self.model.local_linear_hardening, self.model.local_shear_modulus, self.max_iters, self.tolerance, self.results_file, self.model.l_x, self.model.l_y, iteration)
+            self.time_step_integration(self.model.boundary.conditions, self.model.boundary.bc, self.model.boundary.bc_iter, self.model.local_initial_stress, self.model.local_linear_hardening, self.model.local_shear_modulus, self.max_iters, self.tolerance, self.results_file, self.model.l_x, self.model.l_y, iteration)
             print(f"Step: {iteration}, time: {self.time} s")
             print(f"displacement: {self.model.strain_rate.values()[0] * self.time} mm")
 
@@ -674,3 +538,159 @@ class LinearElastoPlasticIntegrator:
             iteration_counter += 1
 
         return current_residual_norm, pressure_change
+
+
+class LinearElastoPlasticConfig:
+    def __init__(self, config_file: str):
+        # todo: move to config file
+        self.strain_rate = fe.Constant(0.000001)
+
+        self._simulation_config, self._substrate_properties, self._layer_properties = self.load_simulation_config(config_file)
+        summarize_and_print_config(self._simulation_config, [self._substrate_properties, self._layer_properties])
+
+    def load_simulation_config(self, file_name):
+        """Loads and initializes a SimulationConfig object from a JSON configuration file."""
+        simulation_config = SimulationConfig(file_name)
+        if simulation_config.field_input_file:
+            input_file = process_abaqus_input_file(simulation_config.field_input_file, plot=True)
+            simulation_config.width = input_file[ExternalInput.WIDTH.value]
+            simulation_config.length = input_file[ExternalInput.LENGTH.value]
+
+            center_yz_points_outside, center_yz_points_inside = self.determine_center_plane(input_file)
+
+            coordinates_on_center_plane = []
+            for outside_points_t, inside_points_t in zip(center_yz_points_outside, center_yz_points_inside):
+                combined_points_t = outside_points_t + inside_points_t
+                coordinates_on_center_plane.append(combined_points_t)
+
+            displacement_x = input_file[ExternalInput.DISPLACEMENTX.value]
+            displacement_y = input_file[ExternalInput.DISPLACEMENTY.value]
+            displacement_z = input_file[ExternalInput.DISPLACEMENTZ.value]
+
+            plot_strain_displacement(input_file)
+
+            x_coordinates = input_file[ExternalInput.X.value]
+            y_coordinates = input_file[ExternalInput.Y.value]
+            z_coordinates = input_file[ExternalInput.Z.value]
+
+            displacement_x_center, displacement_y_center = interpolate_displacements(
+                coordinates_on_center_plane, x_coordinates, y_coordinates, z_coordinates, displacement_x,
+                displacement_y,
+                displacement_z)
+
+            # Call the plot function
+            plot_displacement(displacement_x_center, displacement_y_center)
+
+            # Call the plot function
+            plot_movement(coordinates_on_center_plane, displacement_x_center, displacement_y_center)
+
+            # # Assuming time_values are extracted from your data
+            # time_values = result[ExternalInput.TIME.value]
+            #
+            # # Create an InPlaneInterpolator instance for both in-plane displacements
+            # in_plane_interpolator = InPlaneInterpolator(time_values, coordinates_on_center_plane, displacement_x_center,
+            #                                             displacement_y_center)
+            #
+            # # Now you can query this interpolator for displacements at any time and point in the plane
+            # query_time = 25.0  # for example
+            # query_point = (5.0, 2.0, 3.0)  # for example, assuming it's within the bounds of your data
+            # disp_at_query_time_and_point_1, disp_at_query_time_and_point_2 = in_plane_interpolator.get_displacement_at_point(
+            #     query_time, query_point)
+
+        substrate_properties = MaterialProperties('material_properties.json', simulation_config.material)
+        if simulation_config.use_two_material_layers:
+            layer_properties = MaterialProperties('material_properties.json', simulation_config.layer_material)
+        return simulation_config, substrate_properties, layer_properties
+
+    def determine_center_plane(self, result):
+        x_coordinates = result[ExternalInput.X.value]
+        y_coordinates = result[ExternalInput.Y.value]
+        z_coordinates = result[ExternalInput.Z.value]
+
+        # Extract the outside and inside point indices
+        outside_indices = result[ExternalInput.OUTSIDE_P.value]
+        inside_indices = result[ExternalInput.INSIDE_P.value]
+
+        def get_center_yz_points(indices, x_coordinates, y_coordinates, z_coordinates, tolerance=1e-3):
+            center_yz_points_per_timestep = []
+            for t in range(x_coordinates.shape[1]):
+                x_values_t = x_coordinates[indices, t]
+                y_values_t = y_coordinates[indices, t]
+                z_values_t = z_coordinates[indices, t]
+                center_x_t = np.median(x_values_t)
+                center_yz_points_t = [(x, y, z) for x, y, z in zip(x_values_t, y_values_t, z_values_t) if
+                                      abs(x - center_x_t) < tolerance]
+                if len(center_yz_points_t) != 3:
+                    print("missing points")
+                    exit(-1)
+                center_yz_points_per_timestep.append(center_yz_points_t)
+            return center_yz_points_per_timestep
+
+        center_yz_points_outside = get_center_yz_points(outside_indices, np.array(x_coordinates),
+                                                        np.array(y_coordinates), np.array(z_coordinates))
+        center_yz_points_inside = get_center_yz_points(inside_indices, np.array(x_coordinates), np.array(y_coordinates),
+                                                       np.array(z_coordinates))
+
+        return center_yz_points_outside, center_yz_points_inside
+
+class LinearElastoPlasticBnd:
+    def __init__(self, simulation_config, l_x, l_y, V):
+        self.simulation_config = simulation_config
+        self.l_x = l_x
+        self.l_y = l_y
+        self.V = V
+        self.bc, self.bc_iter, self.conditions = self.setup_displacement_bnd()
+
+    def setup_displacement_bnd(self):
+        # Define boundary location conditions
+        def is_bottom_boundary(x, on_boundary):
+            return on_boundary and fe.near(x[1], 0.0)
+
+        def is_top_boundary(x, on_boundary):
+            return on_boundary and fe.near(x[1], self.l_y)
+
+        def is_left_boundary(x, on_boundary):
+            return on_boundary and fe.near(x[0], 0.0)
+
+        def is_right_boundary(x, on_boundary):
+            return on_boundary and fe.near(x[0], self.l_x)
+
+        # Define the boundary conditions
+        # bnd_length = l_x
+        # displacement_func = LinearDisplacementX((-C_strain_rate, 0.0), bnd_length)
+        # displacement_func = ConstantStrainRate((-C_strain_rate, 0.0))
+        # bottom_condition = FunctionDisplacementBoundaryCondition(V, is_bottom_boundary, displacement_func)
+        # bottom_condition = NoDisplacementBoundaryCondition(V, is_bottom_boundary)
+        # if two_layers:
+        #     bottom_condition = ConstantStrainRateBoundaryCondition(V, is_bottom_boundary, -C_strain_rate)
+        # else:
+        #     bottom_condition = NoDisplacementBoundaryCondition(V, is_bottom_boundary)
+
+        # top_condition = ConstantStrainRateBoundaryCondition(V, is_top_boundary, C_strain_rate)
+        # bnd_length = 100.0
+        # displacement_func = LinearDisplacementX(-C_strain_rate, bnd_length)
+        # displacement_func = ConstantStrainRate((-C_strain_rate, 0.0))
+        # top_condition = FunctionDisplacementBoundaryCondition(V, is_top_boundary, displacement_func)
+        # top_condition = NoDisplacementBoundaryCondition(V, is_top_boundary)
+
+        # bnd_length = l_y
+        # displacement_func = SinglePointDisplacement((0.0, 6.0), (-C_strain_rate, 0.0))
+        # displacement_func = ConstantStrainRate((-C_strain_rate, 0.0))
+        displacement_func = SquareStrainRate((-self.simulation_config.strain_rate, 0.0), 0.0, self.l_y)
+        left_condition = FunctionDisplacementBoundaryCondition(self.V, is_left_boundary, displacement_func)
+
+        # displacement_func = SinglePointDisplacement((4.2, 6.0), (-C_strain_rate, 0.0))
+        # displacement_func = ConstantStrainRate((-C_strain_rate, 0.0))
+        # right_condition = FunctionDisplacementBoundaryCondition(V, is_right_boundary, displacement_func)
+
+        # Create the conditions list
+        conditions = [left_condition]
+
+        # Generate the Dirichlet boundary conditions
+        bc = [condition.get_condition() for condition in conditions]
+
+        # Generate homogenized boundary conditions
+        bc_iter = [condition.get_homogenized_condition() for condition in conditions]
+
+        return bc, bc_iter, conditions
+
