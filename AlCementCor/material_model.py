@@ -404,13 +404,14 @@ class LinearElastoPlasticModel:
         self.newton_rhs = None
 
         # Geometry setup
-        self._mesh, self.l_x, self.l_y = self.setup_geometry()
+        self._mesh = self._simulation_config.mesh
+        self.l_x = self._simulation_config.l_x
+        self.l_y = self._simulation_config.l_y
 
         self._setup()
 
         # Set up boundary conditions
-        self._mesh, self.l_x, self.l_y = self.setup_geometry()
-        self.boundary = LinearElastoPlasticBnd(self._simulation_config, self.l_x, self.l_y, self.V)
+        self.boundary = LinearElastoPlasticBnd(self._simulation_config, self.V)
 
         # Assign layer values
         self.local_initial_stress = self.assign_layer_values(self._simulation_config._substrate_properties.yield_strength,
@@ -419,20 +420,6 @@ class LinearElastoPlasticModel:
                                                             self._simulation_config._layer_properties.shear_modulus)
         self.local_linear_hardening = self.assign_layer_values(self._simulation_config._substrate_properties.linear_isotropic_hardening,
                                                                self._simulation_config._layer_properties.linear_isotropic_hardening)
-
-
-    def setup_geometry(self):
-        """Sets up the geometry of the simulation, including layer thickness and mesh initialization."""
-        l_layer_x = self.simulation_config._simulation_config.layer_1_thickness if self._simulation_config._simulation_config.use_two_material_layers else 0.0
-        l_layer_y = 0.0
-        l_x = self.simulation_config._simulation_config.width + l_layer_x
-        # todo: hardcode
-        # multiplier_y = 3.0
-        # l_y = multiplier_y * simulation_config.length + l_layer_y
-        l_y = self.simulation_config._simulation_config.length + l_layer_y
-        mesh = fe.RectangleMesh(fe.Point(0.0, 0.0), fe.Point(l_x, l_y), self.simulation_config._simulation_config.mesh_resolution_x,
-                                self.simulation_config._simulation_config.mesh_resolution_y)
-        return mesh, l_x, l_y
 
 
 
@@ -543,10 +530,14 @@ class LinearElastoPlasticModel:
 class LinearElastoPlasticConfig:
     def __init__(self, config_file: str):
         # todo: move to config file
+        self.mesh = None
+        self.l_x = None
+        self.l_y = None
         self.strain_rate = fe.Constant(0.000001)
 
         self._simulation_config, self._substrate_properties, self._layer_properties = self.load_simulation_config(config_file)
         summarize_and_print_config(self._simulation_config, [self._substrate_properties, self._layer_properties])
+        self.setup_geometry()
 
     def load_simulation_config(self, file_name):
         """Loads and initializes a SimulationConfig object from a JSON configuration file."""
@@ -633,12 +624,26 @@ class LinearElastoPlasticConfig:
 
         return center_yz_points_outside, center_yz_points_inside
 
+    def setup_geometry(self):
+        """Sets up the geometry of the simulation, including layer thickness and mesh initialization."""
+        l_layer_x = self._simulation_config.layer_1_thickness if self._simulation_config.use_two_material_layers else 0.0
+        l_layer_y = 0.0
+        self.l_x = self._simulation_config.width + l_layer_x
+        # todo: hardcode
+        # multiplier_y = 3.0
+        # l_y = multiplier_y * simulation_config.length + l_layer_y
+        self.l_y = self._simulation_config.length + l_layer_y
+        self.mesh = fe.RectangleMesh(fe.Point(0.0, 0.0), fe.Point(self.l_x, self.l_y),
+                                     self._simulation_config.mesh_resolution_x,
+                                     self._simulation_config.mesh_resolution_y)
+
 class LinearElastoPlasticBnd:
-    def __init__(self, simulation_config, l_x, l_y, V):
+    def __init__(self, simulation_config, V):
         self.simulation_config = simulation_config
-        self.l_x = l_x
-        self.l_y = l_y
+        self.mesh = simulation_config.mesh
         self.V = V
+        self.l_x = simulation_config.l_x
+        self.l_y = simulation_config.l_y
         self.bc, self.bc_iter, self.conditions = self.setup_displacement_bnd()
 
     def setup_displacement_bnd(self):
