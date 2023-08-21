@@ -354,10 +354,7 @@ class LinearElastoPlasticIntegrator:
 
 
 class LinearElastoPlasticModel:
-    FUNCTION_SPACE_DG = "DG"
-    FUNCTION_SPACE_CG = "CG"
-    FUNCTION_SPACE_QUADRATURE = "Quadrature"
-    DEFAULT_DIMENSION = 4
+
 
     def __init__(self, config_file: str):
         self._simulation_config = LinearElastoPlasticConfig(config_file)
@@ -538,10 +535,10 @@ class LinearElastoPlasticModel:
 
 class LinearElastoPlasticConfig:
     def __init__(self, config_file: str):
-        # todo: move to config file
         self.mesh = None
         self.l_x = None
         self.l_y = None
+        # todo: move to config file
         self.strain_rate = fe.Constant(0.000001)
 
         self._simulation_config, self._substrate_properties, self._layer_properties = self.load_simulation_config(config_file)
