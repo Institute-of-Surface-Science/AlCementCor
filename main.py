@@ -10,6 +10,7 @@ from AlCementCor.material_model import *
 fe.parameters["form_compiler"]["representation"] = 'quadrature'
 warnings.simplefilter("once", QuadratureRepresentationDeprecationWarning)
 
+
 def cli_interface():
     parser = argparse.ArgumentParser(description=logo(), formatter_class=PreserveWhiteSpaceArgParseFormatter)
 

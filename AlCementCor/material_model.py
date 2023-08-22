@@ -3,13 +3,9 @@ import fenics as fe
 import numpy as np
 
 from AlCementCor.bnd import SquareStrainRate, FunctionDisplacementBoundaryCondition
-from AlCementCor.config import SimulationConfig
 from AlCementCor.fenics_helpers import as_3D_tensor, local_project
-from AlCementCor.info import summarize_and_print_config
-from AlCementCor.input_file import process_abaqus_input_file, ExternalInput
-from AlCementCor.interpolate import interpolate_displacements
-from AlCementCor.material_properties import MaterialProperties
-from AlCementCor.postproc import plot, plot_strain_displacement, plot_displacement, plot_movement
+from AlCementCor.material_model_config import LinearElastoPlasticConfig
+from AlCementCor.postproc import plot
 from AlCementCor.time_controller import PITimeController
 
 
@@ -221,11 +217,16 @@ class LinearElastoPlasticIntegrator:
         iteration = 0
         while self.time < self.model.simulation_config._simulation_config.integration_time_limit:
             iteration += 1
-            self.time_step_integration(self.model.boundary.conditions, self.model.boundary.bc, self.model.boundary.bc_iter, self.model.local_initial_stress, self.model.local_linear_hardening, self.model.local_shear_modulus, self.max_iters, self.tolerance, self.results_file, self.model.l_x, self.model.l_y, iteration)
+            self.time_step_integration(self.model.boundary.conditions, self.model.boundary.bc,
+                                       self.model.boundary.bc_iter, self.model.local_initial_stress,
+                                       self.model.local_linear_hardening, self.model.local_shear_modulus,
+                                       self.max_iters, self.tolerance, self.results_file, self.model.l_x,
+                                       self.model.l_y, iteration)
             print(f"Step: {iteration}, time: {self.time} s")
             print(f"displacement: {self.model.strain_rate.values()[0] * self.time} mm")
 
-            self.displacement_over_time += [(np.abs(self.model.u(self.model.l_x / 2, self.model.l_y)[1]) / self.model.l_y, self.time)]
+            self.displacement_over_time += [
+                (np.abs(self.model.u(self.model.l_x / 2, self.model.l_y)[1]) / self.model.l_y, self.time)]
 
     def initialize_time_variables(self):
         self.time = 0
@@ -355,7 +356,6 @@ class LinearElastoPlasticIntegrator:
 
 class LinearElastoPlasticModel:
 
-
     def __init__(self, config_file: str):
         self._simulation_config = LinearElastoPlasticConfig(config_file)
 
@@ -416,12 +416,14 @@ class LinearElastoPlasticModel:
         self.boundary = LinearElastoPlasticBnd(self._simulation_config, self.V)
 
         # Assign layer values
-        self.local_initial_stress = self.assign_layer_values(self._simulation_config.substrate_properties.yield_strength,
-                                                             self._simulation_config.layer_properties.yield_strength)
-        self.local_shear_modulus = self.assign_layer_values(self._simulation_config.substrate_properties.shear_modulus,
-                                                            self._simulation_config.layer_properties.shear_modulus)
-        self.local_linear_hardening = self.assign_layer_values(self._simulation_config.substrate_properties.linear_isotropic_hardening,
-                                                               self._simulation_config.layer_properties.linear_isotropic_hardening)
+        substrate_properties = self._simulation_config.substrate_properties
+        layer_properties = self._simulation_config.layer_properties
+        self.local_initial_stress = self.assign_layer_values(substrate_properties.yield_strength,
+            layer_properties.yield_strength)
+        self.local_shear_modulus = self.assign_layer_values(substrate_properties.shear_modulus,
+                                                            layer_properties.shear_modulus)
+        self.local_linear_hardening = self.assign_layer_values(substrate_properties.linear_isotropic_hardening,
+            layer_properties.linear_isotropic_hardening)
 
     def assign_layer_values(self, inner_value: float, outer_value: float) -> 'fe.Function':
         """Assign values based on the given layer widths and return interpolated function."""
@@ -455,10 +457,9 @@ class LinearElastoPlasticModel:
 
     def _setup_function_spaces(self) -> None:
         """Set up the function spaces required for the simulation."""
-        config = self._simulation_config._simulation_config
         mesh_cell = self._mesh.ufl_cell()
-        self.deg_stress = config.finite_element_degree_stress
-        deg_u = config.finite_element_degree_u
+        self.deg_stress = self._simulation_config.finite_element_degree_stress
+        deg_u = self._simulation_config.finite_element_degree_u
 
         # Create vector and scalar function spaces
         self.V = fe.VectorFunctionSpace(self._mesh, "CG", deg_u)
@@ -471,7 +472,6 @@ class LinearElastoPlasticModel:
 
         vec_element = fe.VectorElement("Quadrature", mesh_cell, degree=self.deg_stress, dim=4, quad_scheme='default')
         self.W = fe.FunctionSpace(self._mesh, vec_element)
-
 
     def _setup_displacement_functions(self):
         """Set up functions related to displacements."""
@@ -498,7 +498,8 @@ class LinearElastoPlasticModel:
     def _setup_local_properties(self):
         """Setup local properties of the model."""
         self.mu_local_DG = fe.Function(self.DG)
-        self._assign_local_values(self._simulation_config.substrate_properties.shear_modulus, self._simulation_config.layer_properties.shear_modulus,
+        self._assign_local_values(self._simulation_config.substrate_properties.shear_modulus,
+                                  self._simulation_config.layer_properties.shear_modulus,
                                   self.mu_local_DG)
 
         self.lmbda_local_DG = fe.Function(self.DG)
@@ -513,9 +514,10 @@ class LinearElastoPlasticModel:
 
     def _assign_local_values(self, values: float, outer_values: float, local_DG: fe.Function) -> None:
         """Assign values based on the specified condition."""
+        width = self._simulation_config.width
         dofmap = self.DG.tabulate_dof_coordinates()[:]
         vec = np.full(dofmap.shape[0], values)
-        vec[dofmap[:, 0] > self._simulation_config._simulation_config.width] = outer_values
+        vec[dofmap[:, 0] > width] = outer_values
         local_DG.vector()[:] = vec
 
     def _setup_newton_equations(self):
@@ -533,128 +535,10 @@ class LinearElastoPlasticModel:
         return self._mesh
 
     @property
-    def simulation_config(self) -> 'SimulationConfig':
+    def simulation_config(self) -> LinearElastoPlasticConfig:
         """Provide access to simulation configuration."""
         return self._simulation_config
 
-
-class LinearElastoPlasticConfig:
-    def __init__(self, config_file: str):
-        self.mesh = None
-        self.l_x = None
-        self.l_y = None
-        # todo: move to config file
-        self.strain_rate = fe.Constant(0.000001)
-
-        self._simulation_config, self._substrate_properties, self._layer_properties = self.load_simulation_config(config_file)
-        summarize_and_print_config(self._simulation_config, [self._substrate_properties, self._layer_properties])
-        self.setup_geometry()
-
-    def load_simulation_config(self, file_name):
-        """Loads and initializes a SimulationConfig object from a JSON configuration file."""
-        simulation_config = SimulationConfig(file_name)
-        if simulation_config.field_input_file:
-            input_file = process_abaqus_input_file(simulation_config.field_input_file, plot=True)
-            simulation_config.width = input_file[ExternalInput.WIDTH.value]
-            simulation_config.length = input_file[ExternalInput.LENGTH.value]
-
-            center_yz_points_outside, center_yz_points_inside = self.determine_center_plane(input_file)
-
-            coordinates_on_center_plane = []
-            for outside_points_t, inside_points_t in zip(center_yz_points_outside, center_yz_points_inside):
-                combined_points_t = outside_points_t + inside_points_t
-                coordinates_on_center_plane.append(combined_points_t)
-
-            displacement_x = input_file[ExternalInput.DISPLACEMENTX.value]
-            displacement_y = input_file[ExternalInput.DISPLACEMENTY.value]
-            displacement_z = input_file[ExternalInput.DISPLACEMENTZ.value]
-
-            plot_strain_displacement(input_file)
-
-            x_coordinates = input_file[ExternalInput.X.value]
-            y_coordinates = input_file[ExternalInput.Y.value]
-            z_coordinates = input_file[ExternalInput.Z.value]
-
-            displacement_x_center, displacement_y_center = interpolate_displacements(
-                coordinates_on_center_plane, x_coordinates, y_coordinates, z_coordinates, displacement_x,
-                displacement_y,
-                displacement_z)
-
-            # Call the plot function
-            plot_displacement(displacement_x_center, displacement_y_center)
-
-            # Call the plot function
-            plot_movement(coordinates_on_center_plane, displacement_x_center, displacement_y_center)
-
-            # # Assuming time_values are extracted from your data
-            # time_values = result[ExternalInput.TIME.value]
-            #
-            # # Create an InPlaneInterpolator instance for both in-plane displacements
-            # in_plane_interpolator = InPlaneInterpolator(time_values, coordinates_on_center_plane, displacement_x_center,
-            #                                             displacement_y_center)
-            #
-            # # Now you can query this interpolator for displacements at any time and point in the plane
-            # query_time = 25.0  # for example
-            # query_point = (5.0, 2.0, 3.0)  # for example, assuming it's within the bounds of your data
-            # disp_at_query_time_and_point_1, disp_at_query_time_and_point_2 = in_plane_interpolator.get_displacement_at_point(
-            #     query_time, query_point)
-
-        substrate_properties = MaterialProperties('material_properties.json', simulation_config.material)
-        if simulation_config.use_two_material_layers:
-            layer_properties = MaterialProperties('material_properties.json', simulation_config.layer_material)
-        return simulation_config, substrate_properties, layer_properties
-
-    def determine_center_plane(self, result):
-        x_coordinates = result[ExternalInput.X.value]
-        y_coordinates = result[ExternalInput.Y.value]
-        z_coordinates = result[ExternalInput.Z.value]
-
-        # Extract the outside and inside point indices
-        outside_indices = result[ExternalInput.OUTSIDE_P.value]
-        inside_indices = result[ExternalInput.INSIDE_P.value]
-
-        def get_center_yz_points(indices, x_coordinates, y_coordinates, z_coordinates, tolerance=1e-3):
-            center_yz_points_per_timestep = []
-            for t in range(x_coordinates.shape[1]):
-                x_values_t = x_coordinates[indices, t]
-                y_values_t = y_coordinates[indices, t]
-                z_values_t = z_coordinates[indices, t]
-                center_x_t = np.median(x_values_t)
-                center_yz_points_t = [(x, y, z) for x, y, z in zip(x_values_t, y_values_t, z_values_t) if
-                                      abs(x - center_x_t) < tolerance]
-                if len(center_yz_points_t) != 3:
-                    print("missing points")
-                    exit(-1)
-                center_yz_points_per_timestep.append(center_yz_points_t)
-            return center_yz_points_per_timestep
-
-        center_yz_points_outside = get_center_yz_points(outside_indices, np.array(x_coordinates),
-                                                        np.array(y_coordinates), np.array(z_coordinates))
-        center_yz_points_inside = get_center_yz_points(inside_indices, np.array(x_coordinates), np.array(y_coordinates),
-                                                       np.array(z_coordinates))
-
-        return center_yz_points_outside, center_yz_points_inside
-
-    def setup_geometry(self):
-        """Sets up the geometry of the simulation, including layer thickness and mesh initialization."""
-        l_layer_x = self._simulation_config.layer_1_thickness if self._simulation_config.use_two_material_layers else 0.0
-        l_layer_y = 0.0
-        self.l_x = self._simulation_config.width + l_layer_x
-        # todo: hardcode
-        # multiplier_y = 3.0
-        # l_y = multiplier_y * simulation_config.length + l_layer_y
-        self.l_y = self._simulation_config.length + l_layer_y
-        self.mesh = fe.RectangleMesh(fe.Point(0.0, 0.0), fe.Point(self.l_x, self.l_y),
-                                     self._simulation_config.mesh_resolution_x,
-                                     self._simulation_config.mesh_resolution_y)
-
-    @property
-    def substrate_properties(self) -> 'PropertiesType':
-        return self._substrate_properties
-
-    @property
-    def layer_properties(self) -> 'PropertiesType':
-        return self._layer_properties
 
 class LinearElastoPlasticBnd:
     def __init__(self, simulation_config, V):
@@ -717,4 +601,3 @@ class LinearElastoPlasticBnd:
         bc_iter = [condition.get_homogenized_condition() for condition in conditions]
 
         return bc, bc_iter, conditions
-
