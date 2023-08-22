@@ -193,7 +193,8 @@ class LinearElastoPlasticIntegrator:
 
         # todo: make settable
         self.max_iters, self.tolerance = 10, 1e-8  # Newton-Raphson procedure parameters
-        self.time_step = self.model.simulation_config._simulation_config.integration_time_limit / self.model.simulation_config._simulation_config.total_timesteps
+        self.time_step = self.model.integration_time_limit / self.model.total_timesteps
+
 
         self.time_controller = None
         self.time = None
@@ -220,7 +221,7 @@ class LinearElastoPlasticIntegrator:
 
         self.time_controller = PITimeController(self.time_step, 1e-2 * self.tolerance)
         iteration = 0
-        config_limit = self.model.simulation_config._simulation_config.integration_time_limit
+        config_limit = self.model.integration_time_limit
 
         while self.time < config_limit:
             iteration += 1
@@ -230,12 +231,10 @@ class LinearElastoPlasticIntegrator:
 
     def single_time_step_integration(self, iteration):
         self.time += self.time_controller.time_step
-
         for condition in self.model.boundary.conditions:
             condition.update_time(self.time_controller.time_step)
 
         A, Res = fe.assemble_system(self.model.newton_lhs, self.model.newton_rhs, self.model.boundary.bc)
-
         newton_res_norm, plastic_strain_update = self.run_newton_raphson(A, Res)
 
         if newton_res_norm > 1 or np.isnan(newton_res_norm):
@@ -275,9 +274,6 @@ class LinearElastoPlasticIntegrator:
         p_avg = fe.Function(self.model.P0, name="Plastic strain")
         p_avg.assign(fe.project(p, self.model.P0))
         self.results_file.write(p_avg, self.time)
-
-    def check_convergence(self, nRes, nRes0, tol, niter, Nitermax):
-        return niter == 0 or (nRes0 > 0 and nRes / nRes0 > tol and niter < Nitermax)
 
     def run_newton_raphson(self, system_matrix, residual):
         """
@@ -509,6 +505,13 @@ class LinearElastoPlasticModel:
         """Provide access to simulation configuration."""
         return self._simulation_config
 
+    @property
+    def integration_time_limit(self):
+        return self.simulation_config._simulation_config.integration_time_limit
+
+    @property
+    def total_timesteps(self):
+        return self.simulation_config._simulation_config.total_timesteps
 
 class LinearElastoPlasticBnd:
     def __init__(self, simulation_config, V):
