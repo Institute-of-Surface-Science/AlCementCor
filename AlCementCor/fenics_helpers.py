@@ -45,3 +45,43 @@ def local_project(v, V, dxm, u=None):
     else:
         solver.solve_local_rhs(u)
         return None
+
+
+def assign_values_based_on_boundaries(function_space, partionings, values) -> 'fe.Function':
+    """
+    Assign values based on provided boundaries and return an interpolated function.
+
+    Args:
+        function_space: FEniCS function space.
+        partionings: List of x-coordinates where values change. Should be in increasing order.
+        values: List of values to be assigned within the intervals defined by the boundaries.
+
+    Returns:
+        A FEniCS function with values assigned based on the given boundaries.
+    """
+
+    assert len(partionings) + 1 == len(values), "Number of values should be one more than number of boundaries."
+
+    class BoundaryBasedValue(fe.UserExpression):
+        """User-defined expression for FEniCS to set values based on given boundaries."""
+
+        def __init__(self, boundaries, values, **kwargs):
+            super().__init__(**kwargs)
+            self.boundaries = boundaries
+            self.values = values
+
+        def eval(self, value, x):
+            """Evaluate the function based on position and set values accordingly."""
+            for i, boundary in enumerate(self.boundaries):
+                if x[0] <= boundary:
+                    value[0] = self.values[i]
+                    return
+            value[0] = self.values[-1]
+
+        def value_shape(self):
+            """Return the shape of the value (scalar in this case)."""
+            return ()
+
+    # Instantiate the user expression and interpolate
+    boundary_expr = BoundaryBasedValue(partionings, values)
+    return fe.interpolate(boundary_expr, function_space)

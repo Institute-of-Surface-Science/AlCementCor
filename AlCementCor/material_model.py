@@ -3,7 +3,7 @@ import fenics as fe
 import numpy as np
 
 from AlCementCor.bnd import SquareStrainRate, FunctionDisplacementBoundaryCondition
-from AlCementCor.fenics_helpers import as_3D_tensor, local_project
+from AlCementCor.fenics_helpers import as_3D_tensor, local_project, assign_values_based_on_boundaries
 from AlCementCor.material_model_config import LinearElastoPlasticConfig
 from AlCementCor.postproc import plot
 from AlCementCor.time_controller import PITimeController
@@ -415,37 +415,27 @@ class LinearElastoPlasticModel:
         # Set up boundary conditions
         self.boundary = LinearElastoPlasticBnd(self._simulation_config, self.V)
 
+        # Define boundary and values
+        partioning = [self._simulation_config.width]  # Assuming the width is the "boundary" between substrate and layer
+
         # Assign layer values
         substrate_properties = self._simulation_config.substrate_properties
         layer_properties = self._simulation_config.layer_properties
-        self.local_initial_stress = self.assign_layer_values(substrate_properties.yield_strength,
-            layer_properties.yield_strength)
-        self.local_shear_modulus = self.assign_layer_values(substrate_properties.shear_modulus,
-                                                            layer_properties.shear_modulus)
-        self.local_linear_hardening = self.assign_layer_values(substrate_properties.linear_isotropic_hardening,
-            layer_properties.linear_isotropic_hardening)
 
-    def assign_layer_values(self, inner_value: float, outer_value: float) -> 'fe.Function':
-        """Assign values based on the given layer widths and return interpolated function."""
+        self.local_initial_stress = assign_values_based_on_boundaries(
+            self.W0, partioning,
+            [substrate_properties.yield_strength, layer_properties.yield_strength]
+        )
 
-        class SetLayer(fe.UserExpression):
-            """User-defined expression for FEniCS to set layer values based on width."""
+        self.local_shear_modulus = assign_values_based_on_boundaries(
+            self.W0, partioning,
+            [substrate_properties.shear_modulus, layer_properties.shear_modulus]
+        )
 
-            def __init__(self, width, **kwargs):
-                super().__init__(**kwargs)
-                self.width = width
-
-            def eval(self, value, x):
-                """Evaluate the function based on position and set values accordingly."""
-                value[0] = outer_value if x[0] > self.width else inner_value
-
-            def value_shape(self):
-                """Return the shape of the value (scalar in this case)."""
-                return ()
-
-        # Instantiate the user expression and interpolate
-        layer_expr = SetLayer(self.simulation_config._simulation_config.width)
-        return fe.interpolate(layer_expr, self.W0)
+        self.local_linear_hardening = assign_values_based_on_boundaries(
+            self.W0, partioning,
+            [substrate_properties.linear_isotropic_hardening, layer_properties.linear_isotropic_hardening]
+        )
 
     def _setup(self) -> None:
         self._setup_function_spaces()
