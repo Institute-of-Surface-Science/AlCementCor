@@ -474,22 +474,31 @@ class LinearElastoPlasticModel:
         self.W = fe.FunctionSpace(self._mesh, vec_element)
 
     def _setup_displacement_functions(self):
-        """Set up functions related to displacements."""
-        self.u, self.du, self.Du = [fe.Function(self.V, name=n) for n in
-                                    ["Total displacement", "Iteration correction", "Current increment"]]
+        """Initialize functions for total, correction, and current increment displacements."""
+        self.u = fe.Function(self.V, name="Total displacement")
+        self.du = fe.Function(self.V, name="Iteration correction")
+        self.Du = fe.Function(self.V, name="Current increment")
 
     def _setup_stress_functions(self):
-        """Set up functions related to stress."""
-        self.sig, self.sig_old, self.n_elas = [fe.Function(self.W) for _ in range(3)]
+        """Initialize functions for stress, previous stress, and elastic domain normal."""
+        self.sig = fe.Function(self.W, name="Stress")
+        self.sig_old = fe.Function(self.W, name="Previous stress")
+        self.n_elas = fe.Function(self.W, name="Elastic domain normal")
 
     def _setup_other_functions(self):
-        """Set up miscellaneous functions."""
-        func_names = ["Beta", "Cumulative plastic strain", "Hydrostatic stress", "local sig0", "local mu",
-                      "local lmbda", "local hardening factor"]
-        self.beta, self.p, self.sig_hyd, self.sig_0_local, self.mu_local, self.lmbda_local, self.C_linear_h_local = [
-            fe.Function(self.W0, name=n) for n in func_names]
-        self.sig_hyd_avg, self.sig_0_test, self.lmbda_test = [fe.Function(self.P0, name=n) for n in
-                                                              ["Avg. Hydrostatic stress", "test", "test2"]]
+        """Initialize miscellaneous functions."""
+        self.beta = fe.Function(self.W0, name="Beta")
+        self.p = fe.Function(self.W0, name="Cumulative plastic strain")
+        self.sig_hyd = fe.Function(self.W0, name="Hydrostatic stress")
+        self.sig_0_local = fe.Function(self.W0, name="local sig0")
+        self.mu_local = fe.Function(self.W0, name="local mu")
+        self.lmbda_local = fe.Function(self.W0, name="local lmbda")
+        self.C_linear_h_local = fe.Function(self.W0, name="local hardening factor")
+
+        self.sig_hyd_avg = fe.Function(self.P0, name="Avg. Hydrostatic stress")
+        self.sig_0_test = fe.Function(self.P0, name="test")
+        self.lmbda_test = fe.Function(self.P0, name="test2")
+
         self.metadata = {"quadrature_degree": self.deg_stress, "quadrature_scheme": "default"}
         self.dxm = ufl.dx(metadata=self.metadata)
         self.v = fe.TrialFunction(self.V)
