@@ -10,6 +10,9 @@ from AlCementCor.postproc import plot_strain_displacement, plot_displacement, pl
 
 
 class LinearElastoPlasticConfig:
+    #todo: make settable
+    MATERIAL_PROPERTIES_FILE = 'material_properties.json'
+
     def __init__(self, config_file: str):
         # todo: move to config file
         self.strain_rate = fe.Constant(0.000001)
@@ -21,55 +24,55 @@ class LinearElastoPlasticConfig:
         """Loads and initializes a SimulationConfig object from a JSON configuration file."""
         simulation_config = SimulationConfig(file_name)
         if simulation_config.field_input_file:
-            input_file = process_abaqus_input_file(simulation_config.field_input_file, plot=True)
-            simulation_config.width = input_file[ExternalInput.WIDTH.value]
-            simulation_config.length = input_file[ExternalInput.LENGTH.value]
+            self.process_input_file(simulation_config)
 
-            center_yz_points_outside, center_yz_points_inside = self.determine_center_plane(input_file)
+        substrate_properties = MaterialProperties(self.MATERIAL_PROPERTIES_FILE, simulation_config.material)
 
-            coordinates_on_center_plane = []
-            for outside_points_t, inside_points_t in zip(center_yz_points_outside, center_yz_points_inside):
-                combined_points_t = outside_points_t + inside_points_t
-                coordinates_on_center_plane.append(combined_points_t)
-
-            displacement_x = input_file[ExternalInput.DISPLACEMENTX.value]
-            displacement_y = input_file[ExternalInput.DISPLACEMENTY.value]
-            displacement_z = input_file[ExternalInput.DISPLACEMENTZ.value]
-
-            plot_strain_displacement(input_file)
-
-            x_coordinates = input_file[ExternalInput.X.value]
-            y_coordinates = input_file[ExternalInput.Y.value]
-            z_coordinates = input_file[ExternalInput.Z.value]
-
-            displacement_x_center, displacement_y_center = interpolate_displacements(
-                coordinates_on_center_plane, x_coordinates, y_coordinates, z_coordinates, displacement_x,
-                displacement_y,
-                displacement_z)
-
-            # Call the plot function
-            plot_displacement(displacement_x_center, displacement_y_center)
-
-            # Call the plot function
-            plot_movement(coordinates_on_center_plane, displacement_x_center, displacement_y_center)
-
-            # # Assuming time_values are extracted from your data
-            # time_values = result[ExternalInput.TIME.value]
-            #
-            # # Create an InPlaneInterpolator instance for both in-plane displacements
-            # in_plane_interpolator = InPlaneInterpolator(time_values, coordinates_on_center_plane, displacement_x_center,
-            #                                             displacement_y_center)
-            #
-            # # Now you can query this interpolator for displacements at any time and point in the plane
-            # query_time = 25.0  # for example
-            # query_point = (5.0, 2.0, 3.0)  # for example, assuming it's within the bounds of your data
-            # disp_at_query_time_and_point_1, disp_at_query_time_and_point_2 = in_plane_interpolator.get_displacement_at_point(
-            #     query_time, query_point)
-
-        substrate_properties = MaterialProperties('material_properties.json', simulation_config.material)
+        layer_properties = None
         if simulation_config.use_two_material_layers:
-            layer_properties = MaterialProperties('material_properties.json', simulation_config.layer_material)
+            layer_properties = MaterialProperties(self.MATERIAL_PROPERTIES_FILE, simulation_config.layer_material)
+
         return simulation_config, substrate_properties, layer_properties
+
+    def process_input_file(self, simulation_config):
+        input_file = process_abaqus_input_file(simulation_config.field_input_file, plot=True)
+        simulation_config.width = input_file[ExternalInput.WIDTH.value]
+        simulation_config.length = input_file[ExternalInput.LENGTH.value]
+
+        center_yz_points_outside, center_yz_points_inside = self.determine_center_plane(input_file)
+
+        coordinates_on_center_plane = [outside + inside for outside, inside in
+                                       zip(center_yz_points_outside, center_yz_points_inside)]
+
+        displacement_x = input_file[ExternalInput.DISPLACEMENTX.value]
+        displacement_y = input_file[ExternalInput.DISPLACEMENTY.value]
+        displacement_z = input_file[ExternalInput.DISPLACEMENTZ.value]
+
+        plot_strain_displacement(input_file)
+
+        displacement_x_center, displacement_y_center = interpolate_displacements(
+            coordinates_on_center_plane,
+            input_file[ExternalInput.X.value],
+            input_file[ExternalInput.Y.value],
+            input_file[ExternalInput.Z.value],
+            displacement_x,
+            displacement_y,
+            displacement_z)
+
+        plot_displacement(displacement_x_center, displacement_y_center)
+        plot_movement(coordinates_on_center_plane, displacement_x_center, displacement_y_center)
+        # # Assuming time_values are extracted from your data
+        # time_values = result[ExternalInput.TIME.value]
+        #
+        # # Create an InPlaneInterpolator instance for both in-plane displacements
+        # in_plane_interpolator = InPlaneInterpolator(time_values, coordinates_on_center_plane, displacement_x_center,
+        #                                             displacement_y_center)
+        #
+        # # Now you can query this interpolator for displacements at any time and point in the plane
+        # query_time = 25.0  # for example
+        # query_point = (5.0, 2.0, 3.0)  # for example, assuming it's within the bounds of your data
+        # disp_at_query_time_and_point_1, disp_at_query_time_and_point_2 = in_plane_interpolator.get_displacement_at_point(
+        #     query_time, query_point)
 
     def determine_center_plane(self, result):
         x_coordinates = result[ExternalInput.X.value]
