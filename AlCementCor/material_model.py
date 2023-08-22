@@ -202,13 +202,33 @@ class LinearElastoPlasticIntegrator:
         self.displacement_list = None
         self.max_stress_over_time = None
 
+
     def setup_results_file(self, filename: str):
         results_file = fe.XDMFFile(filename)
         results_file.parameters["flush_output"] = True
         results_file.parameters["functions_share_mesh"] = True
         return results_file
 
+    def initialize_time_variables(self):
+        self.time = 0
+        self.displacement_over_time = [(0, 0)]
+        self.max_stress_over_time = [0]
+        self.mean_stress_over_time = [0]
+        self.displacement_list = [0]
+
     def run_time_integration(self):
+        self.initialize_time_variables()
+
+        self.time_controller = PITimeController(self.time_step, 1e-2 * self.tolerance)
+        iteration = 0
+        config_limit = self.model.simulation_config._simulation_config.integration_time_limit
+
+        while self.time < config_limit:
+            iteration += 1
+            self.single_time_step_integration(iteration)
+            self.update_and_print(iteration)
+
+    def single_time_step_integration(self, iteration):
         # Initialization
         self.initialize_time_variables()
         self.time_controller = PITimeController(self.time_step, 1e-2 * self.tolerance)
@@ -228,12 +248,14 @@ class LinearElastoPlasticIntegrator:
             self.displacement_over_time += [
                 (np.abs(self.model.u(self.model.l_x / 2, self.model.l_y)[1]) / self.model.l_y, self.time)]
 
-    def initialize_time_variables(self):
-        self.time = 0
-        self.displacement_over_time = [(0, 0)]
-        self.max_stress_over_time = [0]
-        self.mean_stress_over_time = [0]
-        self.displacement_list = [0]
+    def update_and_print(self, iteration):
+        displacement_value = self.model.strain_rate.values()[0] * self.time
+        print(f"Step: {iteration}, time: {self.time} s")
+        print(f"displacement: {displacement_value} mm")
+        disp = np.abs(self.model.u(self.model.l_x / 2, self.model.l_y)[1]) / self.model.l_y
+        self.displacement_over_time.append((disp, self.time))
+
+
 
     def time_step_integration(self, conditions, bc, bc_iter, local_initial_stress, local_linear_hardening,
                               local_shear_modulus, max_iters, tolerance, results_file, l_x, l_y, iteration):
