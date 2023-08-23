@@ -28,6 +28,27 @@ def cli_interface():
     args = parser.parse_args()
     return args
 
+def postprocess(model, timestep_count):
+    # max_stress_over_time = [0]
+    # mean_stress_over_time = [0]
+    # displacement_over_time = [(0, 0)]
+
+    sig_eq_p = local_project(compute_von_mises_stress(model.sig), model.P0, model.dxm)
+
+    if timestep_count % 10 == 0:
+        plot(timestep_count, model.u, sig_eq_p)
+
+    #displacement_over_time.append((displacement_at_center_top[1], integrator.time))
+    # max_stress_over_time.extend([np.abs(np.amax(sig_eq_p.vector()[:]))])
+    # mean_stress_over_time.extend([np.abs(np.mean(sig_eq_p.vector()[:]))])
+
+
+def info_out(integrator, model, timestep_count):
+    displacement_at_center_top = model.u(model.l_x / 2.0, model.l_y)
+    # print(displacement_at_center_top)
+    # disp = np.abs(displacement_at_center_top[1]) / model.l_y
+    print(f"Step: {timestep_count}, time: {integrator.time} s")
+    print(f"displacement: {displacement_at_center_top[1]} mm")
 
 def main() -> None:
     """Main function to run the simulation."""
@@ -38,32 +59,17 @@ def main() -> None:
     model = LinearElastoPlasticModel(simulation_config)
     integrator = LinearElastoPlasticIntegrator(model)
 
-    timestep_count = 0
-    config_limit = simulation_config.integration_time_limit
-
-    displacement_over_time = [(0, 0)]
-    max_stress_over_time = [0]
-    mean_stress_over_time = [0]
+    timestep_count = 1
+    max_time = simulation_config.integration_time_limit
 
     # Main time integration loop
-    while integrator.time < config_limit and args.max > timestep_count:
-        timestep_count += 1
+    while integrator.time < max_time and args.max > timestep_count:
         integrator.single_time_step_integration()
 
-        displacement_at_center_top = model.u(model.l_x / 2.0, model.l_y)
-        #print(displacement_at_center_top)
-        #disp = np.abs(displacement_at_center_top[1]) / model.l_y
-        print(f"Step: {timestep_count}, time: {integrator.time} s")
-        print(f"displacement: {displacement_at_center_top[1]} mm")
-        displacement_over_time.append((displacement_at_center_top[1], integrator.time))
+        info_out(integrator, model, timestep_count)
 
-        sig_eq_p = local_project(compute_von_mises_stress(model.sig), model.P0, model.dxm)
-
-        if timestep_count % 10 == 0:
-            plot(timestep_count, model.u, sig_eq_p)
-
-        max_stress_over_time.extend([np.abs(np.amax(sig_eq_p.vector()[:]))])
-        mean_stress_over_time.extend([np.abs(np.mean(sig_eq_p.vector()[:]))])
+        postprocess(model, timestep_count)
+        timestep_count += 1
 
 
 if __name__ == "__main__":
