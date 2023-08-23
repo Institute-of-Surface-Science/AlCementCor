@@ -6,6 +6,7 @@ OpenModel example use case for damage simulation for a cement-aluminium interfac
 
 To use this repository, the following Python packages are required:
 
+- Fenics and related libraries
 - Numpy
 - Scipy
 - Matplotlib
@@ -14,10 +15,10 @@ To use this repository, the following Python packages are required:
 - sklearn
 - tabulate
 
-These packages can be installed via pip:
+These packages can be installed via apt on Ubuntu 22.04:
 
 ```sh
-pip install numpy scipy matplotlib jsonschema pandas sklearn tabulate
+sudo apt-get install -y dolfin-bin libdolfin-dev libdolfin-dev-common libdolfin2019.2 python3-dijitso python3-dolfin python3-dolfin-real python3-ffc python3-ufl python3-tabulate python3-tables python3-scipy python3-petsc4py python3-pandas python3-numpy python3-sklearn python3-jsonschema python3-matplotlib python3-mshr
 ```
 
 ## Getting Started
