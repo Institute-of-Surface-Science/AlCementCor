@@ -6,6 +6,7 @@ from AlCementCor.bnd import SquareStrainRate, FunctionDisplacementBoundaryCondit
 from AlCementCor.config import SimulationConfig
 from AlCementCor.fenics_helpers import as_3D_tensor, local_project, assign_values_based_on_boundaries
 from AlCementCor.material_model_config import LinearElastoPlasticConfig
+from AlCementCor.misc import check_divergence
 from AlCementCor.postproc import plot
 from AlCementCor.time_controller import PITimeController
 
@@ -119,7 +120,8 @@ def compute_tangential_stress(strain_tensor, normal_elasticity: fe.Function, she
     return tangential_stress
 
 
-def compute_von_mises_stress_from_strain(strain_tensor, lambda_coefficient: fe.Function, shear_modulus: fe.Function) -> fe.Function:
+def compute_von_mises_stress_from_strain(strain_tensor, lambda_coefficient: fe.Function,
+                                         shear_modulus: fe.Function) -> fe.Function:
     """
     Calculate the Von-Mises Stress.
 
@@ -181,7 +183,6 @@ def compute_von_mises_stress(sig: fe.Function) -> fe.Function:
     # stress tensor and represents the effective stress that can be compared with material yield
     # strengths.
     return fe.sqrt(3 / 2. * fe.inner(s, s))
-
 
 
 def ppos(x):
@@ -257,8 +258,6 @@ def proj_sig(deps, old_sig, old_p, sig_0_local, C_linear_h_local, mu_local, lmbd
 class LinearElastoPlasticIntegrator:
     def __init__(self, model: 'SimulationModel'):
         self.model = model
-        # todo: make settable
-        self.results_file = self.setup_results_file("plasticity_results.xdmf")
 
         # todo: make settable
         self.max_iters, self.tolerance = 10, 1e-8  # Newton-Raphson procedure parameters
@@ -266,12 +265,6 @@ class LinearElastoPlasticIntegrator:
 
         self.time_controller = PITimeController(self.time_step, 1e-2 * self.tolerance)
         self.time = 0.0
-
-    def setup_results_file(self, filename: str):
-        results_file = fe.XDMFFile(filename)
-        results_file.parameters["flush_output"] = True
-        results_file.parameters["functions_share_mesh"] = True
-        return results_file
 
     def single_time_step_integration(self):
         self.time += self.time_step
@@ -281,8 +274,7 @@ class LinearElastoPlasticIntegrator:
         A, Res = fe.assemble_system(self.model.newton_lhs, self.model.newton_rhs, self.model.boundary.bc)
         newton_res_norm, plastic_strain_update = self.run_newton_raphson(A, Res)
 
-        if newton_res_norm > 1 or np.isnan(newton_res_norm):
-            raise ValueError("ERROR: Calculation diverged!")
+        check_divergence(newton_res_norm)
 
         self.update_and_store_results(plastic_strain_update)
         self.time_step = self.time_controller.update(newton_res_norm)
@@ -294,11 +286,6 @@ class LinearElastoPlasticIntegrator:
         p.assign(p + local_project(dp_, self.model.W0, self.model.dxm))
         sig_old.assign(sig)
         sig_hyd_avg.assign(fe.project(sig_hyd, self.model.P0))
-
-        self.results_file.write(u, self.time)
-        p_avg = fe.Function(self.model.P0, name="Plastic strain")
-        p_avg.assign(fe.project(p, self.model.P0))
-        self.results_file.write(p_avg, self.time)
 
     def run_newton_raphson(self, system_matrix, residual):
         """
@@ -535,6 +522,14 @@ class LinearElastoPlasticModel:
     @property
     def total_timesteps(self):
         return self.simulation_config.simulation_config.total_timesteps
+
+    @property
+    def substrate_properties(self):
+        return self.simulation_config.substrate_properties
+
+    @property
+    def layer_properties(self):
+        return self.simulation_config.layer_properties
 
 
 class LinearElastoPlasticBnd:

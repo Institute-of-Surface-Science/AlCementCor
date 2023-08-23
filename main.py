@@ -3,7 +3,6 @@ import fenics as fe
 import warnings
 import argparse
 from ffc.quadrature.deprecation import QuadratureRepresentationDeprecationWarning
-from typing import Namespace, Tuple
 
 from AlCementCor.info import *
 from AlCementCor.material_model import *
@@ -12,7 +11,7 @@ fe.parameters["form_compiler"]["representation"] = 'quadrature'
 warnings.simplefilter("once", QuadratureRepresentationDeprecationWarning)
 
 
-def parse_command_line_args() -> Namespace:
+def parse_command_line_args():
     """
     Command-line interface setup function.
 
@@ -57,7 +56,7 @@ def postprocess(model: 'LinearElastoPlasticModel', timestep_count: int) -> None:
     # mean_stress_over_time.extend([np.abs(np.mean(sig_eq_p.vector()[:]))])
 
 
-def info_out(integrator: 'LinearElastoPlasticIntegrator', model: 'LinearElastoPlasticModel', timestep_count: int) -> None:
+def info_out(model: 'LinearElastoPlasticModel', timestep_count: int, time: float) -> None:
     """
     Display information about the current state of the simulation.
 
@@ -69,8 +68,22 @@ def info_out(integrator: 'LinearElastoPlasticIntegrator', model: 'LinearElastoPl
     displacement_at_center_top = model.u(model.l_x / 2.0, model.l_y)
     # print(displacement_at_center_top)
     # disp = np.abs(displacement_at_center_top[1]) / model.l_y
-    print(f"Step: {timestep_count}, time: {integrator.time} s")
+    print(f"Step: {timestep_count}, time: {time} s")
     print(f"displacement: {displacement_at_center_top[1]} mm")
+
+
+def write_output(results_file, model, time):
+    results_file.write(model.u, time)
+    p_avg = fe.Function(model.P0, name="Plastic strain")
+    p_avg.assign(fe.project(model.p, model.P0))
+    results_file.write(p_avg, time)
+
+
+def create_output_file(filename):
+    results_file = fe.XDMFFile(filename)
+    results_file.parameters["flush_output"] = True
+    results_file.parameters["functions_share_mesh"] = True
+    return results_file
 
 
 def main() -> None:
@@ -80,16 +93,27 @@ def main() -> None:
     model = LinearElastoPlasticModel(simulation_config)
     integrator = LinearElastoPlasticIntegrator(model)
 
+    summarize_and_print_config(simulation_config.simulation_config,
+                               materials=[model.substrate_properties, model.layer_properties])
+
+    # todo: make settable
+    results_file = create_output_file("plasticity_results.xdmf")
+
+    time = 0
     timestep_count = 1
     max_time = simulation_config.integration_time_limit
 
     # Main time integration loop
-    while integrator.time < max_time and args.max_steps > timestep_count:
+    while time < max_time and args.max_steps > timestep_count:
         integrator.single_time_step_integration()
+        time = integrator.time
 
-        info_out(integrator, model, timestep_count)
+        info_out(model, timestep_count, time)
 
         postprocess(model, timestep_count)
+
+        write_output(results_file, model, time)
+
         timestep_count += 1
 
 
