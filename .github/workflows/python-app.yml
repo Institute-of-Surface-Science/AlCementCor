@@ -29,6 +29,7 @@ jobs:
     - name: List site-packages
       run: |
         ls $(python -c "import site; print(site.getsitepackages()[0])")
+        pip list
 
     - name: Run main.py
       run: python3 main.py
