@@ -30,6 +30,10 @@ jobs:
         python3 -m pip install --upgrade pip
         pip3 install fenics numpy scipy matplotlib jsonschema pandas scikit-learn tabulate
 
+     - name: List site-packages
+       run: |
+        ls $(python -c "import site; print(site.getsitepackages()[0])")
+
     - name: Run main.py
       run: python3 main.py
 
