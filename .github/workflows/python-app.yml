@@ -28,7 +28,7 @@ jobs:
     - name: Install Python dependencies
       run: |
         python3 -m pip install --upgrade pip
-        pip3 install fenics numpy scipy matplotlib jsonschema pandas scikit-learn tabulate
+        pip3 install fenics-ffc numpy scipy matplotlib jsonschema pandas scikit-learn tabulate
 
     - name: List site-packages
       run: |
