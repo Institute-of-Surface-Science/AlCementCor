@@ -28,6 +28,7 @@ def cli_interface():
     args = parser.parse_args()
     return args
 
+
 def postprocess(model, timestep_count):
     # max_stress_over_time = [0]
     # mean_stress_over_time = [0]
@@ -38,7 +39,7 @@ def postprocess(model, timestep_count):
     if timestep_count % 10 == 0:
         plot(timestep_count, model.u, sig_eq_p)
 
-    #displacement_over_time.append((displacement_at_center_top[1], integrator.time))
+    # displacement_over_time.append((displacement_at_center_top[1], integrator.time))
     # max_stress_over_time.extend([np.abs(np.amax(sig_eq_p.vector()[:]))])
     # mean_stress_over_time.extend([np.abs(np.mean(sig_eq_p.vector()[:]))])
 
@@ -49,6 +50,7 @@ def info_out(integrator, model, timestep_count):
     # disp = np.abs(displacement_at_center_top[1]) / model.l_y
     print(f"Step: {timestep_count}, time: {integrator.time} s")
     print(f"displacement: {displacement_at_center_top[1]} mm")
+
 
 def main() -> None:
     """Main function to run the simulation."""
