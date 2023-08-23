@@ -79,17 +79,19 @@ class SimulationFields(Enum):
     RESOLUTION_X = "x"
     RESOLUTION_Y = "y"
 
-    CONSTANT_STRAIN_RATE = "constant_strain_rate"
-    STRAIN_RATE_X = "x"
-    STRAIN_RATE_Y = "y"
-
-    FINITE_ELEMENT_DEGREES = "FiniteElementDegrees"
+    FINITE_ELEMENT_DEGREES = "finite_element_degrees"
     FEM_DEG_U = "u"
     FEM_DEG_STRESS = "stress"
 
     MATERIAL_MODEL = "material_model"
     MATERIAL = "material"
     HARDENING_MODEL = "hardening_model"
+
+    BOUNDARY_CONDITIONS = "boundary_conditions"
+    LEFT = "left"
+    RIGHT = "right"
+    TOP = "top"
+    BOTTOM = "bottom"
 
 
 class SimulationConfig:
@@ -261,16 +263,6 @@ class SimulationConfig:
                         SimulationFields.RESOLUTION_Y.value, None)
 
     @property
-    def strain_rate_x(self) -> Any:
-        return self.get(SimulationFields.SIMULATION_PARAMETERS.value, SimulationFields.CONSTANT_STRAIN_RATE.value,
-                        SimulationFields.STRAIN_RATE_X.value, None)
-
-    @property
-    def strain_rate_y(self) -> Any:
-        return self.get(SimulationFields.SIMULATION_PARAMETERS.value, SimulationFields.CONSTANT_STRAIN_RATE.value,
-                        SimulationFields.STRAIN_RATE_Y.value, None)
-
-    @property
     def finite_element_degree_u(self) -> Any:
         return self.get(SimulationFields.SIMULATION_PARAMETERS.value, SimulationFields.FINITE_ELEMENT_DEGREES.value,
                         SimulationFields.FEM_DEG_U.value, None)
@@ -287,3 +279,19 @@ class SimulationConfig:
     @property
     def layer_material(self) -> Any:
         return self.get(SimulationFields.LAYER_1.value, SimulationFields.LAYER_MATERIAL.value, None)
+
+    @property
+    def boundary_condition_left(self) -> Any:
+        return self.get(SimulationFields.BOUNDARY_CONDITIONS.value, SimulationFields.LEFT.value, None)
+
+    @property
+    def boundary_condition_right(self) -> Any:
+        return self.get(SimulationFields.BOUNDARY_CONDITIONS.value, SimulationFields.RIGHT.value, None)
+
+    @property
+    def boundary_condition_top(self) -> Any:
+        return self.get(SimulationFields.BOUNDARY_CONDITIONS.value, SimulationFields.TOP.value, None)
+
+    @property
+    def boundary_condition_bottom(self) -> Any:
+        return self.get(SimulationFields.BOUNDARY_CONDITIONS.value, SimulationFields.BOTTOM.value, None)

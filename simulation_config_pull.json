@@ -18,7 +18,7 @@
             "x": null,
             "y": 0.0001
         },
-        "FiniteElementDegrees": {
+        "finite_element_degrees": {
             "u": 2,
             "stress": 2
         }
@@ -30,6 +30,16 @@
     "material_model": {
         "material": "Al6082-T6",
         "hardening_model": "linear"
-    }
+    },
+  "boundary_conditions": {
+    "left": "unset",
+    "right": "unset",
+    "top":  {
+      "constant_strain_rate": {
+        "strain_rate": 0.000001
+      }
+    },
+    "bottom": "no_displacement"
+  }
 }
 

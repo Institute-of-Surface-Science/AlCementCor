@@ -1,35 +1,45 @@
 {
-    "simulation_metadata": {
-        "title": "Material Stress Analysis",
-        "description": "Simulation parameters for a two-layer material stress analysis.",
-        "date": "2023-08-01",
-        "author": "Sven Berger"
+  "simulation_metadata": {
+    "title": "Material Stress Analysis",
+    "description": "Simulation parameters for a two-layer material stress analysis.",
+    "date": "2023-08-01",
+    "author": "Sven Berger"
+  },
+  "simulation_parameters": {
+    "use_two_material_layers": true,
+    "integration_time_limit": 17500,
+    "total_timesteps": 10000,
+    "field_input_file": "CementOutput.json",
+    "mesh_resolution": {
+      "x": 200,
+      "y": 100
     },
-    "simulation_parameters": {
-        "use_two_material_layers": true,
-        "integration_time_limit": 17500,
-        "total_timesteps": 10000,
-        "field_input_file": "CementOutput.json",
-        "mesh_resolution": {
-            "x": 200,
-            "y": 100
-        },
-        "FiniteElementDegrees": {
-            "u": 1,
-            "stress": 2
-        }
-    },
-    "material_dimensions": {
-        "length": null,
-        "width": null
-    },
-    "layer-1": {
-        "thickness": 0.2,
-        "direction": "X",
-        "material": "Aluminium-Ceramic"
-    },
-    "material_model": {
-        "material": "Al6082-T6",
-        "hardening_model": "linear"
+    "finite_element_degrees": {
+      "u": 1,
+      "stress": 2
     }
+  },
+  "material_dimensions": {
+    "length": null,
+    "width": null
+  },
+  "layer-1": {
+    "thickness": 0.2,
+    "direction": "X",
+    "material": "Aluminium-Ceramic"
+  },
+  "material_model": {
+    "material": "Al6082-T6",
+    "hardening_model": "linear"
+  },
+  "boundary_conditions": {
+    "left": "unset",
+    "right": {
+      "constant_strain_rate": {
+        "strain_rate": 0.000001
+      }
+    },
+    "top": "unset",
+    "bottom": "unset"
+  }
 }
