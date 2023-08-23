@@ -266,11 +266,6 @@ class LinearElastoPlasticIntegrator:
 
         self.time_controller = PITimeController(self.time_step, 1e-2 * self.tolerance)
         self.time = 0.0
-        # todo: remove all of these things after this note because they should be somewhere else
-        self.displacement_over_time = [(0, 0)]
-        self.max_stress_over_time = [0]
-        self.mean_stress_over_time = [0]
-        self.displacement_list = [0]
 
     def setup_results_file(self, filename: str):
         results_file = fe.XDMFFile(filename)
@@ -278,7 +273,7 @@ class LinearElastoPlasticIntegrator:
         results_file.parameters["functions_share_mesh"] = True
         return results_file
 
-    def single_time_step_integration(self, iteration):
+    def single_time_step_integration(self):
         self.time += self.time_step
         for condition in self.model.boundary.conditions:
             condition.update_time(self.time_step)
@@ -289,31 +284,16 @@ class LinearElastoPlasticIntegrator:
         if newton_res_norm > 1 or np.isnan(newton_res_norm):
             raise ValueError("ERROR: Calculation diverged!")
 
-        self.update_and_store_results(iteration, plastic_strain_update)
+        self.update_and_store_results(plastic_strain_update)
         self.time_step = self.time_controller.update(newton_res_norm)
 
-    def update_and_print(self, iteration):
-        disp = np.abs(self.model.u(self.model.l_x / 2, self.model.l_y)[1]) / self.model.l_y
-        print(f"Step: {iteration}, time: {self.time} s")
-        print(f"displacement: {disp} mm")
-        self.displacement_over_time.append((disp, self.time))
-
-    def update_and_store_results(self, iteration, dp_):
+    def update_and_store_results(self, dp_):
         u, Du, p, sig, sig_old, sig_hyd, sig_hyd_avg = self.model.u, self.model.Du, self.model.p, self.model.sig, self.model.sig_old, self.model.sig_hyd, self.model.sig_hyd_avg
 
         u.assign(u + Du)
         p.assign(p + local_project(dp_, self.model.W0, self.model.dxm))
         sig_old.assign(sig)
         sig_hyd_avg.assign(fe.project(sig_hyd, self.model.P0))
-
-        sig_eq_p = local_project(compute_von_mises_stress(sig), self.model.P0, self.model.dxm)
-
-        if iteration % 10 == 0:
-            plot(iteration, u, sig_eq_p)
-
-        self.max_stress_over_time.extend([np.abs(np.amax(sig_eq_p.vector()[:]))])
-        self.mean_stress_over_time.extend([np.abs(np.mean(sig_eq_p.vector()[:]))])
-        self.displacement_list.append(u(self.model.l_x / 2, self.model.l_y)[1])
 
         self.results_file.write(u, self.time)
         p_avg = fe.Function(self.model.P0, name="Plastic strain")

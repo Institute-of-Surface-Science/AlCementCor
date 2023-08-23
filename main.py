@@ -41,11 +41,29 @@ def main() -> None:
     timestep_count = 0
     config_limit = simulation_config.integration_time_limit
 
+    displacement_over_time = [(0, 0)]
+    max_stress_over_time = [0]
+    mean_stress_over_time = [0]
+
     # Main time integration loop
     while integrator.time < config_limit and args.max > timestep_count:
         timestep_count += 1
-        integrator.single_time_step_integration(timestep_count)
-        integrator.update_and_print(timestep_count)
+        integrator.single_time_step_integration()
+
+        displacement_at_center_top = model.u(model.l_x / 2.0, model.l_y)
+        #print(displacement_at_center_top)
+        #disp = np.abs(displacement_at_center_top[1]) / model.l_y
+        print(f"Step: {timestep_count}, time: {integrator.time} s")
+        print(f"displacement: {displacement_at_center_top[1]} mm")
+        displacement_over_time.append((displacement_at_center_top[1], integrator.time))
+
+        sig_eq_p = local_project(compute_von_mises_stress(model.sig), model.P0, model.dxm)
+
+        if timestep_count % 10 == 0:
+            plot(timestep_count, model.u, sig_eq_p)
+
+        max_stress_over_time.extend([np.abs(np.amax(sig_eq_p.vector()[:]))])
+        mean_stress_over_time.extend([np.abs(np.mean(sig_eq_p.vector()[:]))])
 
 
 if __name__ == "__main__":
