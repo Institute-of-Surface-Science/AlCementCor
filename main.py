@@ -3,6 +3,7 @@ import fenics as fe
 import warnings
 import argparse
 from ffc.quadrature.deprecation import QuadratureRepresentationDeprecationWarning
+from typing import Namespace, Tuple
 
 from AlCementCor.info import *
 from AlCementCor.material_model import *
@@ -11,12 +12,12 @@ fe.parameters["form_compiler"]["representation"] = 'quadrature'
 warnings.simplefilter("once", QuadratureRepresentationDeprecationWarning)
 
 
-def cli_interface():
+def cli_interface() -> Namespace:
     """
     Command-line interface setup function.
 
     Returns:
-    argparse.Namespace: Parsed command-line arguments.
+        argparse.Namespace: Parsed command-line arguments.
     """
 
     parser = argparse.ArgumentParser(description=logo(),
@@ -31,20 +32,19 @@ def cli_interface():
                         help="Show program's version number and exit.")
 
     # Argument for specifying maximum number of time steps.
-    parser.add_argument('-m', '--max', type=int, default=10000,
+    parser.add_argument('-m', '--max-steps', type=int, default=10000,
                         help='Maximum number of time steps.')
 
     return parser.parse_args()
 
 
-def postprocess(model, timestep_count):
+def postprocess(model: 'LinearElastoPlasticModel', timestep_count: int) -> None:
     """
     Post-process and visualize the results of the simulation.
 
     Parameters:
     - model: Model containing relevant information about the simulation.
     - timestep_count: Current timestep number.
-
     """
     # max_stress_over_time = [0]
     # mean_stress_over_time = [0]
@@ -60,7 +60,7 @@ def postprocess(model, timestep_count):
     # mean_stress_over_time.extend([np.abs(np.mean(sig_eq_p.vector()[:]))])
 
 
-def info_out(integrator, model, timestep_count):
+def info_out(integrator: 'LinearElastoPlasticIntegrator', model: 'LinearElastoPlasticModel', timestep_count: int) -> None:
     """
     Display information about the current state of the simulation.
 
@@ -89,7 +89,7 @@ def main() -> None:
     max_time = simulation_config.integration_time_limit
 
     # Main time integration loop
-    while integrator.time < max_time and args.max > timestep_count:
+    while integrator.time < max_time and args.max_steps > timestep_count:
         integrator.single_time_step_integration()
 
         info_out(integrator, model, timestep_count)
