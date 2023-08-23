@@ -12,7 +12,7 @@ fe.parameters["form_compiler"]["representation"] = 'quadrature'
 warnings.simplefilter("once", QuadratureRepresentationDeprecationWarning)
 
 
-def cli_interface() -> Namespace:
+def parse_command_line_args() -> Namespace:
     """
     Command-line interface setup function.
 
@@ -23,15 +23,12 @@ def cli_interface() -> Namespace:
     parser = argparse.ArgumentParser(description=logo(),
                                      formatter_class=PreserveWhiteSpaceArgParseFormatter)
 
-    # Argument for specifying the configuration file for the simulation.
     parser.add_argument('-c', '--config', type=str, default='simulation_config.json',
                         help='Path to the simulation configuration JSON file.')
 
-    # Argument for program version.
     parser.add_argument('-v', '--version', action='version', version='%(prog)s 1.0',
                         help="Show program's version number and exit.")
 
-    # Argument for specifying maximum number of time steps.
     parser.add_argument('-m', '--max-steps', type=int, default=10000,
                         help='Maximum number of time steps.')
 
@@ -50,10 +47,10 @@ def postprocess(model: 'LinearElastoPlasticModel', timestep_count: int) -> None:
     # mean_stress_over_time = [0]
     # displacement_over_time = [(0, 0)]
 
-    sig_eq_p = local_project(compute_von_mises_stress(model.sig), model.P0, model.dxm)
+    von_mises_stress = local_project(compute_von_mises_stress(model.sig), model.P0, model.dxm)
 
     if timestep_count % 10 == 0:
-        plot(timestep_count, model.u, sig_eq_p)
+        plot(timestep_count, model.u, von_mises_stress)
 
     # displacement_over_time.append((displacement_at_center_top[1], integrator.time))
     # max_stress_over_time.extend([np.abs(np.amax(sig_eq_p.vector()[:]))])
@@ -77,10 +74,8 @@ def info_out(integrator: 'LinearElastoPlasticIntegrator', model: 'LinearElastoPl
 
 
 def main() -> None:
-    """Main function to run the simulation."""
+    args = parse_command_line_args()
 
-    # Setup the simulation from the command-line interface and config file
-    args = cli_interface()
     simulation_config = LinearElastoPlasticConfig(args.config)
     model = LinearElastoPlasticModel(simulation_config)
     integrator = LinearElastoPlasticIntegrator(model)
