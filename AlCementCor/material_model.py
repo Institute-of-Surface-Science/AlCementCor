@@ -293,11 +293,9 @@ class LinearElastoPlasticIntegrator:
         self.time_step = self.time_controller.update(newton_res_norm)
 
     def update_and_print(self, iteration):
-        # todo: this output is not correct
-        displacement_value = self.model.strain_rate.values()[0] * self.time
-        print(f"Step: {iteration}, time: {self.time} s")
-        print(f"displacement: {displacement_value} mm")
         disp = np.abs(self.model.u(self.model.l_x / 2, self.model.l_y)[1]) / self.model.l_y
+        print(f"Step: {iteration}, time: {self.time} s")
+        print(f"displacement: {disp} mm")
         self.displacement_over_time.append((disp, self.time))
 
     def update_and_store_results(self, iteration, dp_):
@@ -374,9 +372,6 @@ class LinearElastoPlasticModel:
 
     def __init__(self, config_file: "LinearElastoPlasticConfig"):
         self._simulation_config = config_file
-
-        # todo: move to config file
-        self.strain_rate = fe.Constant(0.000001)
 
         # Function spaces
         self.deg_stress: int = -1
