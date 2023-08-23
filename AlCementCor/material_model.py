@@ -116,6 +116,25 @@ def compute_von_mises_stress(strain_tensor, lambda_coefficient: fe.Function, she
     return deviatoric_magnitude
 
 
+def compute_projected_von_mises_stress(sig: fe.Function, P0: fe.FunctionSpace, dxm: fe.Measure) -> fe.Function:
+    """
+    Calculate and project the Von-Mises Stress onto a specified function space.
+
+    Parameters:
+    - sig: Stress tensor
+    - P0: Function space to project the Von-Mises Stress onto
+    - dxm: Measure associated with the domain
+
+    Returns:
+    - Projected Von-Mises Stress
+    """
+
+    sig_n = as_3D_tensor(sig)
+    s = fe.dev(sig_n)
+    sig_eq = fe.sqrt(3 / 2. * fe.inner(s, s))
+    return local_project(sig_eq, P0, dxm)
+
+
 def ppos(x):
     """
     Macaulay's Bracket for <f_elastic>+.
@@ -197,8 +216,8 @@ class LinearElastoPlasticIntegrator:
         self.time_step = self.model.integration_time_limit / self.model.total_timesteps
 
         self.time_controller = PITimeController(self.time_step, 1e-2 * self.tolerance)
-        # todo: remove all of these things after this note because they should be somewhere else
         self.time = 0.0
+        # todo: remove all of these things after this note because they should be somewhere else
         self.displacement_over_time = [(0, 0)]
         self.max_stress_over_time = [0]
         self.mean_stress_over_time = [0]
@@ -211,7 +230,6 @@ class LinearElastoPlasticIntegrator:
         return results_file
 
     def single_time_step_integration(self, iteration):
-        #todo: remove time because it is not really used
         self.time += self.time_step
         for condition in self.model.boundary.conditions:
             condition.update_time(self.time_step)
@@ -226,7 +244,7 @@ class LinearElastoPlasticIntegrator:
         self.time_step = self.time_controller.update(newton_res_norm)
 
     def update_and_print(self, iteration):
-        #todo: this output is not correct
+        # todo: this output is not correct
         displacement_value = self.model.strain_rate.values()[0] * self.time
         print(f"Step: {iteration}, time: {self.time} s")
         print(f"displacement: {displacement_value} mm")
@@ -241,10 +259,7 @@ class LinearElastoPlasticIntegrator:
         sig_old.assign(sig)
         sig_hyd_avg.assign(fe.project(sig_hyd, self.model.P0))
 
-        sig_n = as_3D_tensor(sig)
-        s = fe.dev(sig_n)
-        sig_eq = fe.sqrt(3 / 2. * fe.inner(s, s))
-        sig_eq_p = local_project(sig_eq, self.model.P0, self.model.dxm)
+        sig_eq_p = compute_projected_von_mises_stress(sig, self.model.P0, self.model.dxm)
 
         if iteration % 10 == 0:
             plot(iteration, u, sig_eq_p)
@@ -405,7 +420,6 @@ class LinearElastoPlasticModel:
 
         # Create vector and scalar function spaces
         self.V = fe.VectorFunctionSpace(self._mesh, "CG", deg_u)
-        self.DG = fe.FunctionSpace(self._mesh, "DG", 0)
         self.P0 = fe.FunctionSpace(self._mesh, "DG", 0)
 
         # Setup quadrature spaces
@@ -448,17 +462,17 @@ class LinearElastoPlasticModel:
 
     def _setup_local_properties(self):
         """Setup local properties of the model."""
-        self.mu_local_DG = fe.Function(self.DG)
+        self.mu_local_DG = fe.Function(self.P0)
         self._assign_local_values(self._simulation_config.substrate_properties.shear_modulus,
                                   self._simulation_config.layer_properties.shear_modulus,
                                   self.mu_local_DG)
 
-        self.lmbda_local_DG = fe.Function(self.DG)
+        self.lmbda_local_DG = fe.Function(self.P0)
         self._assign_local_values(self._simulation_config.substrate_properties.first_lame_parameter,
                                   self._simulation_config.layer_properties.first_lame_parameter,
                                   self.lmbda_local_DG)
 
-        self.local_linear_hardening_DG = fe.Function(self.DG)
+        self.local_linear_hardening_DG = fe.Function(self.P0)
         self._assign_local_values(self._simulation_config.substrate_properties.linear_isotropic_hardening,
                                   self._simulation_config.layer_properties.linear_isotropic_hardening,
                                   self.local_linear_hardening_DG)
@@ -466,7 +480,7 @@ class LinearElastoPlasticModel:
     def _assign_local_values(self, values: float, outer_values: float, local_DG: fe.Function) -> None:
         """Assign values based on the specified condition."""
         width = self._simulation_config.width
-        dofmap = self.DG.tabulate_dof_coordinates()[:]
+        dofmap = self.P0.tabulate_dof_coordinates()[:]
         vec = np.full(dofmap.shape[0], values)
         vec[dofmap[:, 0] > width] = outer_values
         local_DG.vector()[:] = vec
