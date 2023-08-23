@@ -12,19 +12,32 @@ from AlCementCor.time_controller import PITimeController
 
 def compute_strain_tensor(displacement: fe.Function):
     """
-    Calculate the strain tensor (epsilon) based on a given displacement tensor.
+    Calculate the strain tensor (epsilon) based on a given displacement field.
 
-    Note:
-    - Assumes Plane-Strain conditions (third component in the strain is 0)
+    The strain tensor, in continuum mechanics, quantifies how a material deforms under the influence of forces.
+    It is defined as half the sum of the gradient of the displacement field and its transpose.
+
+    In this function, the Plane-Strain condition is assumed. This condition is a simplifying assumption where
+    out-of-plane strains are assumed to be zero. It's often used in plate bending or situations where one
+    dimension is significantly smaller than the other two.
 
     Parameters:
-    - displacement: The displacement tensor
+    - displacement: The displacement function representing how points in the material move. This function is
+                    usually vector-valued.
 
     Returns:
-    - strain tensor
+    - A 3x3 tensor representing the strain tensor, where the third component (out-of-plane) is zero due to the
+      Plane-Strain assumption.
     """
+
+    # The symmetric gradient (or symmetrized gradient) of the displacement is computed.
+    # This symmetrization is the mathematical formulation of the definition of strain:
+    # ε = 1/2 (∇u + (∇u)ᵀ)
+    # Where u is the displacement field and ∇u is its gradient.
     symmetric_gradient = fe.sym(fe.nabla_grad(displacement))
 
+    # Construct the 3x3 strain tensor using the computed symmetric gradient.
+    # Given the plane-strain assumption, the third row and column are all zeros.
     return fe.as_tensor([
         [symmetric_gradient[0, 0], symmetric_gradient[0, 1], 0],
         [symmetric_gradient[0, 1], symmetric_gradient[1, 1], 0],
@@ -36,22 +49,34 @@ def compute_stress(strain_tensor, lambda_coefficient: fe.Function, shear_modulus
     """
     Calculate the Cauchy Stress Tensor for linear elasticity.
 
+    In the context of linear elasticity, the stress tensor relates to the strain tensor through the material's
+    elasticity parameters. Specifically, it divides into two main contributions: the isotropic (volumetric) stress
+    and the deviatoric (shape-changing) stress.
+
     Parameters:
-    - strain_tensor: 2D or 3D strain tensor representing deformation.
-    - lambda_coefficient: Lamé's first parameter.
-    - shear_modulus: Material's shear modulus (or Lamé's second parameter).
+    - strain_tensor: 2D or 3D strain tensor representing deformation. It quantifies how the material deforms.
+    - lambda_coefficient: Lamé's first parameter, which is related to the material's bulk modulus and
+                          Poisson's ratio. It characterizes the material's resistance to uniform compression or dilation.
+    - shear_modulus: Material's shear modulus (or Lamé's second parameter). It quantifies the material's resistance
+                     to shape changes (shearing).
 
     Returns:
-    - Cauchy Stress Tensor
+    - Cauchy Stress Tensor, which describes the internal forces within a material subjected to external loads.
     """
 
-    # Calculate isotropic (volumetric) stress contribution
+    # The isotropic (or volumetric) stress contribution arises due to a change in volume of the material.
+    # It is proportional to the trace of the strain tensor (sum of its diagonal elements), which represents
+    # the fractional change in volume. The Identity(3) term produces a 3x3 identity tensor.
+    # This part of the stress tends to change the material's volume without changing its shape.
     isotropic_stress = lambda_coefficient * fe.tr(strain_tensor) * fe.Identity(3)
 
-    # Calculate deviatoric (shape-changing) stress contribution
+    # The deviatoric (or shape-changing) stress contribution is due to the shape change of the material.
+    # It is proportional to the actual strain tensor itself and determines the shear stresses within the material.
+    # This part of the stress tends to deform the material without a change in volume.
     deviatoric_stress = 2 * shear_modulus * strain_tensor
 
-    # Combine isotropic and deviatoric contributions
+    # The total stress tensor is the sum of the isotropic and deviatoric contributions. In linear elasticity,
+    # these two contributions are additive.
     total_stress = isotropic_stress + deviatoric_stress
 
     return total_stress
@@ -94,45 +119,69 @@ def compute_tangential_stress(strain_tensor, normal_elasticity: fe.Function, she
     return tangential_stress
 
 
-def compute_von_mises_stress(strain_tensor, lambda_coefficient: fe.Function, shear_modulus: fe.Function) -> fe.Function:
+def compute_von_mises_stress_from_strain(strain_tensor, lambda_coefficient: fe.Function, shear_modulus: fe.Function) -> fe.Function:
     """
     Calculate the Von-Mises Stress.
 
+    The Von-Mises stress is a scalar representation of a complex state of stress in a material. It provides
+    a single value that can be compared to the material's yield strength to determine if yielding occurs.
+    It is particularly useful in the context of ductile material failure.
+
     Parameters:
-    - strain_tensor: Strain tensor
-    - lambda_coefficient: Lamé's first parameter
-    - shear_modulus: Material's shear modulus (or Lamé's second parameter)
+    - strain_tensor: The strain tensor describes the deformation of a material element in terms of elongations
+                     and rotations. For linear elasticity, it linearly relates to the stress tensor.
+    - lambda_coefficient: Lamé's first parameter, a material property related to its bulk modulus and Poisson's ratio.
+                          It influences the volumetric response of the material.
+    - shear_modulus: Also known as the Lamé's second parameter, it quantifies the material's resistance to shearing
+                     (shape-changing) deformations.
 
     Returns:
-    - Von-Mises Stress
+    - Von-Mises Stress: A scalar stress value derived from the stress tensor, useful for failure predictions.
     """
 
-    # Compute the deviatoric component of the stress tensor
+    # First, we compute the full Cauchy stress tensor for the material based on its strain tensor and
+    # material properties (lambda_coefficient and shear_modulus).
+    # Then, the deviatoric component of this stress tensor is extracted. The deviatoric stress represents the
+    # shape-changing aspect of stress, discarding the volumetric (hydrostatic) part.
     deviatoric_stress = fe.dev(compute_stress(strain_tensor, lambda_coefficient, shear_modulus))
 
-    # Compute the magnitude of the deviatoric stress
-    deviatoric_magnitude = fe.sqrt(1.5 * fe.inner(deviatoric_stress, deviatoric_stress))
-
-    return deviatoric_magnitude
+    return compute_von_mises_stress(deviatoric_stress)
 
 
-def compute_projected_von_mises_stress(sig: fe.Function, P0: fe.FunctionSpace, dxm: fe.Measure) -> fe.Function:
+def compute_von_mises_stress(sig: fe.Function) -> fe.Function:
     """
-    Calculate and project the Von-Mises Stress onto a specified function space.
+    Calculate and project the Von-Mises Stress onto a DG(0) function space.
+
+    The Von-Mises stress is a scalar value often used in mechanical engineering to
+    predict yielding of materials under complex loading conditions. This function first
+    calculates the Von-Mises stress from a given stress tensor and then projects the
+    resulting scalar field onto a specified finite element function space. Projecting onto
+    a DG(0) space means the stress will be represented as piecewise constant values over
+    the mesh elements. This can be essential for visualization or when post-processing
+    stress distributions.
 
     Parameters:
-    - sig: Stress tensor
-    - P0: Function space to project the Von-Mises Stress onto
-    - dxm: Measure associated with the domain
+    - sig: Stress tensor representing the internal forces in the material. It's typically
+           derived from a balance of forces in the material under deformation.
 
     Returns:
-    - Projected Von-Mises Stress
+    - Von-Mises Stress: A scalar stress value derived from the stress tensor, useful for failure predictions.
     """
 
+    # Convert the provided stress tensor (which might be 2D) into a 3D tensor. This step ensures
+    # compatibility with 3D operations, even if the actual problem is 2D.
     sig_n = as_3D_tensor(sig)
+
+    # Extract the deviatoric part of the stress tensor. The deviatoric stress tensor represents
+    # the differential or shape-changing aspects of stress, separate from the hydrostatic or
+    # volumetric part.
     s = fe.dev(sig_n)
-    sig_eq = fe.sqrt(3 / 2. * fe.inner(s, s))
-    return local_project(sig_eq, P0, dxm)
+
+    # Compute the magnitude of the Von-Mises stress. The formula is derived from the deviatoric
+    # stress tensor and represents the effective stress that can be compared with material yield
+    # strengths.
+    return fe.sqrt(3 / 2. * fe.inner(s, s))
+
 
 
 def ppos(x):
@@ -259,7 +308,7 @@ class LinearElastoPlasticIntegrator:
         sig_old.assign(sig)
         sig_hyd_avg.assign(fe.project(sig_hyd, self.model.P0))
 
-        sig_eq_p = compute_projected_von_mises_stress(sig, self.model.P0, self.model.dxm)
+        sig_eq_p = local_project(compute_von_mises_stress(sig), self.model.P0, self.model.dxm)
 
         if iteration % 10 == 0:
             plot(iteration, u, sig_eq_p)
