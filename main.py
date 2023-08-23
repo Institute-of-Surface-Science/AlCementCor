@@ -22,6 +22,9 @@ def cli_interface():
     parser.add_argument('-v', '--version', action='version', version='%(prog)s 1.0',
                         help='Show program\'s version number and exit.')
 
+    parser.add_argument('-m', '--max', type=int, default=10000,
+                        help='Maximum number of time steps.')
+
     args = parser.parse_args()
     return args
 
@@ -39,7 +42,7 @@ def main() -> None:
     config_limit = simulation_config.integration_time_limit
 
     # Main time integration loop
-    while integrator.time < config_limit:
+    while integrator.time < config_limit and args.max > timestep_count:
         timestep_count += 1
         integrator.single_time_step_integration(timestep_count)
         integrator.update_and_print(timestep_count)
