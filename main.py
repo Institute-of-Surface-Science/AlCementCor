@@ -29,21 +29,20 @@ def cli_interface():
 def main() -> None:
     """Main function to run the simulation."""
 
+    # Setup the simulation from the command-line interface and config file
     args = cli_interface()
     simulation_config = LinearElastoPlasticConfig(args.config)
     model = LinearElastoPlasticModel(simulation_config)
     integrator = LinearElastoPlasticIntegrator(model)
 
-    time = 0
-    no_timesteps = 0
+    timestep_count = 0
     config_limit = simulation_config.integration_time_limit
 
-    # main time integration loop
-    while time < config_limit:
-        no_timesteps += 1
-        time += integrator.time_step
-        integrator.single_time_step_integration(no_timesteps)
-        integrator.update_and_print(no_timesteps)
+    # Main time integration loop
+    while integrator.time < config_limit:
+        timestep_count += 1
+        integrator.single_time_step_integration(timestep_count)
+        integrator.update_and_print(timestep_count)
 
 
 if __name__ == "__main__":
