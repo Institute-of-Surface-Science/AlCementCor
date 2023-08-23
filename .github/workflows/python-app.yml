@@ -2,7 +2,7 @@ name: Python CI
 
 on:
   push:
-    branches: [ main ] 
+    branches: [ main ]
   pull_request:
     branches: [ main ]
 
@@ -27,9 +27,8 @@ jobs:
 
     - name: Install Python dependencies
       run: |
-        # If you have requirements.txt, uncomment the next line
-        # pip install -r requirements.txt
         python -m pip install --upgrade pip
+        pip install fenics numpy scipy matplotlib jsonschema pandas sklearn tabulate
 
     - name: Run main.py
       run: python3 main.py
