@@ -32,5 +32,96 @@
       "Tangent_modulus": 2000,
       "Linear_isotropic_hardening": 2020.2
     }
+  },
+  "O1_Steel": {
+    "metadata": {
+      "material_name": "O1 Tool Steel",
+      "composition": "Carbon: 0.85-1.0%, Manganese: 1.0-1.4%, Chromium: 0.5-0.6%, Tungsten: 0.5-0.6%, Vanadium: 0.1-0.3%, Silicon: 0.1-0.5%, Iron: Balance",
+      "source": "Unknown",
+      "remarks": "Oil-hardening cold-work tool steel"
+    },
+    "properties": {
+      "Youngs_modulus": 207000,
+      "Poissons_ratio": 0.3,
+      "Yield_strength": 700
+    }
+  },
+  "A4_Steel": {
+    "metadata": {
+      "material_name": "A4 Stainless Steel",
+      "composition": "Carbon: ≤0.08%, Chromium: 16-18%, Molybdenum: 2-3%, Nickel: 10-14%, Manganese: ≤2%, Silicon: ≤1%, Iron: Balance",
+      "source": "Unknown",
+      "remarks": "Also known as 316 stainless steel"
+    },
+    "properties": {
+      "Youngs_modulus": 193000,
+      "Poissons_ratio": 0.3,
+      "Yield_strength": 205
+    }
+  },
+  "D2_Steel": {
+    "metadata": {
+      "material_name": "D2 Tool Steel",
+      "composition": "Carbon: 1.4-1.6%, Chromium: 11-13%, Molybdenum: 0.7-1.2%, Vanadium: 0.7-1.1%, Manganese: 0.15-0.45%, Silicon: 0.1-0.6%, Iron: Balance",
+      "source": "Unknown",
+      "remarks": "High-carbon, high-chromium tool steel"
+    },
+    "properties": {
+      "Youngs_modulus": 210000,
+      "Poissons_ratio": 0.3,
+      "Yield_strength": 1500
+    }
+  },
+  "Al6061-T6": {
+    "metadata": {
+      "material_name": "Aluminium 6061-T6",
+      "composition": "Aluminium: 95.8-98.6%, Magnesium: 0.8-1.2%, Silicon: 0.4-0.8%, Iron: ≤0.7%, Copper: 0.15-0.40%, Chromium: 0.04-0.35%, Zinc: ≤0.25%, Manganese: ≤0.15%, Titanium: ≤0.15%",
+      "source": "Unknown",
+      "remarks": "Medium to high strength alloy with good corrosion resistance"
+    },
+    "properties": {
+      "Youngs_modulus": 68900,
+      "Poissons_ratio": 0.33,
+      "Yield_strength": 276
+    }
+  },
+  "Al7075-T6": {
+    "metadata": {
+      "material_name": "Aluminium 7075-T6",
+      "composition": "Aluminium: 87.1-91.4%, Zinc: 5.1-6.1%, Magnesium: 2.1-2.9%, Copper: 1.2-2.0%, Chromium: 0.18-0.28%, Iron: ≤0.5%, Silicon: ≤0.4%, Manganese: ≤0.3%, Titanium: ≤0.2%",
+      "source": "Unknown",
+      "remarks": "High-strength alloy with good fatigue strength and average corrosion resistance"
+    },
+    "properties": {
+      "Youngs_modulus": 71700,
+      "Poissons_ratio": 0.33,
+      "Yield_strength": 503
+    }
+  },
+  "AISI_304_Stainless": {
+    "metadata": {
+      "material_name": "AISI 304 Stainless Steel",
+      "composition": "Carbon: ≤0.08%, Chromium: 18-20%, Nickel: 8-10.5%, Manganese: ≤2%, Silicon: ≤1%, Iron: Balance, Phosphorus: ≤0.045%, Sulfur: ≤0.03%",
+      "source": "Unknown",
+      "remarks": "Common austenitic stainless steel known for corrosion resistance"
+    },
+    "properties": {
+      "Youngs_modulus": 200000,
+      "Poissons_ratio": 0.29,
+      "Yield_strength": 215
+    }
+  },
+  "Mild_Steel_A36": {
+    "metadata": {
+      "material_name": "Mild Steel (A36)",
+      "composition": "Carbon: 0.05-0.3%, Manganese: 0.25-0.8%, Phosphorus: ≤0.04%, Sulfur: ≤0.05%, Silicon: 0.15-0.4%, Iron: Balance",
+      "source": "Unknown",
+      "remarks": "Low carbon steel used in general structural applications"
+    },
+    "properties": {
+      "Youngs_modulus": 210000,
+      "Poissons_ratio": 0.26,
+      "Yield_strength": 250
+    }
   }
 }
