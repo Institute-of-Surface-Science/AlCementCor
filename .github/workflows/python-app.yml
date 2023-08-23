@@ -24,8 +24,11 @@ jobs:
     - name: List installed Python packages
       run: docker exec fenics-container pip3 list
 
+#    - name: Install additional Python packages
+#      run: docker exec fenics-container pip3 install numpy scipy matplotlib jsonschema pandas sklearn tabulate
+
     - name: Install additional Python packages
-      run: docker exec fenics-container pip3 install numpy scipy matplotlib jsonschema pandas sklearn tabulate
+      run: docker exec fenics-container pip3 install pandas sklearn tabulate
 
     - name: Execute main.py inside the container
       run: docker exec fenics-container python3 /home/fenics/shared/main.py
