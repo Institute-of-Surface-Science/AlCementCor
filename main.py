@@ -12,24 +12,40 @@ warnings.simplefilter("once", QuadratureRepresentationDeprecationWarning)
 
 
 def cli_interface():
-    parser = argparse.ArgumentParser(description=logo(), formatter_class=PreserveWhiteSpaceArgParseFormatter)
+    """
+    Command-line interface setup function.
 
-    # Add an argument for configuration file, default to 'simulation_config.json'
+    Returns:
+    argparse.Namespace: Parsed command-line arguments.
+    """
+
+    parser = argparse.ArgumentParser(description=logo(),
+                                     formatter_class=PreserveWhiteSpaceArgParseFormatter)
+
+    # Argument for specifying the configuration file for the simulation.
     parser.add_argument('-c', '--config', type=str, default='simulation_config.json',
                         help='Path to the simulation configuration JSON file.')
 
-    # Add an argument for version information
+    # Argument for program version.
     parser.add_argument('-v', '--version', action='version', version='%(prog)s 1.0',
-                        help='Show program\'s version number and exit.')
+                        help="Show program's version number and exit.")
 
+    # Argument for specifying maximum number of time steps.
     parser.add_argument('-m', '--max', type=int, default=10000,
                         help='Maximum number of time steps.')
 
-    args = parser.parse_args()
-    return args
+    return parser.parse_args()
 
 
 def postprocess(model, timestep_count):
+    """
+    Post-process and visualize the results of the simulation.
+
+    Parameters:
+    - model: Model containing relevant information about the simulation.
+    - timestep_count: Current timestep number.
+
+    """
     # max_stress_over_time = [0]
     # mean_stress_over_time = [0]
     # displacement_over_time = [(0, 0)]
@@ -45,6 +61,14 @@ def postprocess(model, timestep_count):
 
 
 def info_out(integrator, model, timestep_count):
+    """
+    Display information about the current state of the simulation.
+
+    Parameters:
+    - integrator: Integrator being used in the simulation.
+    - model: Model containing relevant information about the simulation.
+    - timestep_count: Current timestep number.
+    """
     displacement_at_center_top = model.u(model.l_x / 2.0, model.l_y)
     # print(displacement_at_center_top)
     # disp = np.abs(displacement_at_center_top[1]) / model.l_y
