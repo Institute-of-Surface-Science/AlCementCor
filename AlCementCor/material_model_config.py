@@ -10,7 +10,7 @@ from AlCementCor.postproc import plot_strain_displacement, plot_displacement, pl
 
 
 class LinearElastoPlasticConfig:
-    #todo: make settable
+    # todo: make settable
     MATERIAL_PROPERTIES_FILE = 'material_properties.json'
 
     def __init__(self, config_file: str):
@@ -173,3 +173,11 @@ class LinearElastoPlasticConfig:
     @property
     def layer_linear_isotropic_hardening(self):
         return self._layer_properties.linear_isotropic_hardening
+
+    @property
+    def simulation_config(self):
+        return self._simulation_config
+
+    @property
+    def integration_time_limit(self):
+        return self._simulation_config.integration_time_limit

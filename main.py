@@ -30,10 +30,20 @@ def main() -> None:
     """Main function to run the simulation."""
 
     args = cli_interface()
-    model = LinearElastoPlasticModel(args.config)
+    simulation_config = LinearElastoPlasticConfig(args.config)
+    model = LinearElastoPlasticModel(simulation_config)
     integrator = LinearElastoPlasticIntegrator(model)
 
-    integrator.run_time_integration()
+    time = 0
+    no_timesteps = 0
+    config_limit = simulation_config.integration_time_limit
+
+    # main time integration loop
+    while time < config_limit:
+        no_timesteps += 1
+        time += integrator.time_step
+        integrator.single_time_step_integration(no_timesteps)
+        integrator.update_and_print(no_timesteps)
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ import fenics as fe
 import numpy as np
 
 from AlCementCor.bnd import SquareStrainRate, FunctionDisplacementBoundaryCondition
+from AlCementCor.config import SimulationConfig
 from AlCementCor.fenics_helpers import as_3D_tensor, local_project, assign_values_based_on_boundaries
 from AlCementCor.material_model_config import LinearElastoPlasticConfig
 from AlCementCor.postproc import plot
@@ -195,13 +196,13 @@ class LinearElastoPlasticIntegrator:
         self.max_iters, self.tolerance = 10, 1e-8  # Newton-Raphson procedure parameters
         self.time_step = self.model.integration_time_limit / self.model.total_timesteps
 
-
-        self.time_controller = None
-        self.time = None
-        self.displacement_over_time = None
-        self.mean_stress_over_time = None
-        self.displacement_list = None
-        self.max_stress_over_time = None
+        self.time_controller = PITimeController(self.time_step, 1e-2 * self.tolerance)
+        # todo: remove all of these things after this note because they should be somewhere else
+        self.time = 0.0
+        self.displacement_over_time = [(0, 0)]
+        self.max_stress_over_time = [0]
+        self.mean_stress_over_time = [0]
+        self.displacement_list = [0]
 
     def setup_results_file(self, filename: str):
         results_file = fe.XDMFFile(filename)
@@ -209,30 +210,11 @@ class LinearElastoPlasticIntegrator:
         results_file.parameters["functions_share_mesh"] = True
         return results_file
 
-    def initialize_time_variables(self):
-        self.time = 0
-        self.displacement_over_time = [(0, 0)]
-        self.max_stress_over_time = [0]
-        self.mean_stress_over_time = [0]
-        self.displacement_list = [0]
-
-    def run_time_integration(self):
-        self.initialize_time_variables()
-
-        self.time_controller = PITimeController(self.time_step, 1e-2 * self.tolerance)
-        iteration = 0
-        config_limit = self.model.integration_time_limit
-
-        while self.time < config_limit:
-            iteration += 1
-            self.single_time_step_integration(iteration)
-            self.update_and_print(iteration)
-
-
     def single_time_step_integration(self, iteration):
-        self.time += self.time_controller.time_step
+        #todo: remove time because it is not really used
+        self.time += self.time_step
         for condition in self.model.boundary.conditions:
-            condition.update_time(self.time_controller.time_step)
+            condition.update_time(self.time_step)
 
         A, Res = fe.assemble_system(self.model.newton_lhs, self.model.newton_rhs, self.model.boundary.bc)
         newton_res_norm, plastic_strain_update = self.run_newton_raphson(A, Res)
@@ -241,9 +223,10 @@ class LinearElastoPlasticIntegrator:
             raise ValueError("ERROR: Calculation diverged!")
 
         self.update_and_store_results(iteration, plastic_strain_update)
-        self.time_controller.update(newton_res_norm)
+        self.time_step = self.time_controller.update(newton_res_norm)
 
     def update_and_print(self, iteration):
+        #todo: this output is not correct
         displacement_value = self.model.strain_rate.values()[0] * self.time
         print(f"Step: {iteration}, time: {self.time} s")
         print(f"displacement: {displacement_value} mm")
@@ -291,7 +274,7 @@ class LinearElastoPlasticIntegrator:
         while iteration_counter == 0 or (
                 initial_residual_norm > 0 and current_residual_norm / initial_residual_norm > self.tolerance and iteration_counter < self.max_iters):
             # Solve the linear system
-            fe.solve(system_matrix,  self.model.du.vector(), residual, "mumps")
+            fe.solve(system_matrix, self.model.du.vector(), residual, "mumps")
 
             # Update solution
             self.model.Du.assign(self.model.Du + self.model.du)
@@ -299,7 +282,8 @@ class LinearElastoPlasticIntegrator:
 
             # Project the new stress
             stress_update, elastic_strain_update, back_stress_update, pressure_change, hydrostatic_stress_update = proj_sig(
-                strain_change, self.model.sig_old, self.model.p, self.model.local_initial_stress, self.model.local_linear_hardening,
+                strain_change, self.model.sig_old, self.model.p, self.model.local_initial_stress,
+                self.model.local_linear_hardening,
                 self.model.local_shear_modulus, self.model.lmbda_local_DG, self.model.mu_local_DG)
 
             # Update field values
@@ -309,7 +293,8 @@ class LinearElastoPlasticIntegrator:
             self.model.sig_hyd.assign(local_project(hydrostatic_stress_update, self.model.W0, self.model.dxm))
 
             # Assemble system
-            system_matrix, residual = fe.assemble_system(self.model.newton_lhs, self.model.newton_rhs, self.model.boundary.bc_iter)
+            system_matrix, residual = fe.assemble_system(self.model.newton_lhs, self.model.newton_rhs,
+                                                         self.model.boundary.bc_iter)
 
             # Update residual norm
             current_residual_norm = residual.norm("l2")
@@ -323,8 +308,8 @@ class LinearElastoPlasticIntegrator:
 
 class LinearElastoPlasticModel:
 
-    def __init__(self, config_file: str):
-        self._simulation_config = LinearElastoPlasticConfig(config_file)
+    def __init__(self, config_file: "LinearElastoPlasticConfig"):
+        self._simulation_config = config_file
 
         # todo: move to config file
         self.strain_rate = fe.Constant(0.000001)
@@ -507,11 +492,12 @@ class LinearElastoPlasticModel:
 
     @property
     def integration_time_limit(self):
-        return self.simulation_config._simulation_config.integration_time_limit
+        return self.simulation_config.simulation_config.integration_time_limit
 
     @property
     def total_timesteps(self):
-        return self.simulation_config._simulation_config.total_timesteps
+        return self.simulation_config.simulation_config.total_timesteps
+
 
 class LinearElastoPlasticBnd:
     def __init__(self, simulation_config, V):
