@@ -280,10 +280,10 @@ class LinearElastoPlasticIntegrator:
         self.time_step = self.time_controller.update(newton_res_norm)
 
     def update_and_store_results(self, dp_):
-        u, Du, p, sig, sig_old, sig_hyd, sig_hyd_avg = self.model.u, self.model.Du, self.model.p, self.model.sig, self.model.sig_old, self.model.sig_hyd, self.model.sig_hyd_avg
+        u, Du, p, sig, sig_old, sig_hyd, sig_hyd_avg = self.model.total_displacement, self.model.Du, self.model.cum_plstic_strain, self.model.stress, self.model.old_stress, self.model.hydrostatic_stress, self.model.sig_hyd_avg
 
         u.assign(u + Du)
-        p.assign(p + local_project(dp_, self.model.W0, self.model.dxm))
+        p.assign(p + local_project(dp_, self.model.scalar_quad_space, self.model.dxm))
         sig_old.assign(sig)
         sig_hyd_avg.assign(fe.project(sig_hyd, self.model.P0))
 
@@ -311,15 +311,15 @@ class LinearElastoPlasticIntegrator:
 
             # Project the new stress
             stress_update, elastic_strain_update, back_stress_update, pressure_change, hydrostatic_stress_update = proj_sig(
-                strain_change, self.model.sig_old, self.model.p, self.model.local_initial_stress,
+                strain_change, self.model.old_stress, self.model.cum_plstic_strain, self.model.local_initial_stress,
                 self.model.local_linear_hardening,
                 self.model.local_shear_modulus, self.model.lmbda_local_DG, self.model.mu_local_DG)
 
             # Update field values
-            local_project(stress_update, self.model.W, self.model.dxm, self.model.sig)
-            local_project(elastic_strain_update, self.model.W, self.model.dxm, self.model.n_elas)
-            local_project(back_stress_update, self.model.W0, self.model.dxm, self.model.beta)
-            self.model.sig_hyd.assign(local_project(hydrostatic_stress_update, self.model.W0, self.model.dxm))
+            local_project(stress_update, self.model.tensor_quad_space, self.model.dxm, self.model.stress)
+            local_project(elastic_strain_update, self.model.tensor_quad_space, self.model.dxm, self.model.n_elas)
+            local_project(back_stress_update, self.model.scalar_quad_space, self.model.dxm, self.model.beta)
+            self.model.hydrostatic_stress.assign(local_project(hydrostatic_stress_update, self.model.scalar_quad_space, self.model.dxm))
 
             # Assemble system
             system_matrix, residual = fe.assemble_system(self.model.newton_lhs, self.model.newton_rhs,
@@ -338,24 +338,23 @@ class LinearElastoPlasticIntegrator:
 class LinearElastoPlasticModel:
 
     def __init__(self, config_file: str):
-        self._model_config = LinearElastoPlasticConfig(config_file)
+        self._config = LinearElastoPlasticConfig(config_file)
 
         # Function spaces
-        self.deg_stress: int = -1
-        self.V = None
-        self.DG = None
-        self.W = None
-        self.W0 = None
+        self.stress_degree: int = -1
+        self.vector_space = None
+        self.tensor_quad_space = None
+        self.scalar_quad_space = None
         self.P0 = None
 
         # Displacement functions
-        self.u = None
+        self.total_displacement = None
         self.du = None
         self.Du = None
 
         # Stress functions
-        self.sig = None
-        self.sig_old = None
+        self.stress = None
+        self.old_stress = None
         self.n_elas = None
 
         # Local properties
@@ -365,8 +364,8 @@ class LinearElastoPlasticModel:
 
         # Other functions and parameters
         self.beta = None
-        self.p = None
-        self.sig_hyd = None
+        self.cum_plstic_strain = None
+        self.hydrostatic_stress = None
         self.sig_0_local = None
         self.mu_local = None
         self.lmbda_local = None
@@ -384,34 +383,34 @@ class LinearElastoPlasticModel:
         self.newton_rhs = None
 
         # Geometry setup
-        self._mesh = self._model_config.mesh
-        self.l_x = self._model_config.l_x
-        self.l_y = self._model_config.l_y
+        self._mesh = self._config.mesh
+        self.l_x = self._config.l_x
+        self.l_y = self._config.l_y
 
         self._setup()
 
         # Set up boundary conditions
-        self.boundary = LinearElastoPlasticBnd(self._model_config, self.V)
+        self.boundary = LinearElastoPlasticBnd(self._config, self.vector_space)
 
         # Define boundary and values
-        partioning = [self._model_config.width]  # Assuming the width is the "boundary" between substrate and layer
+        partioning = [self._config.width]  # Assuming the width is the "boundary" between substrate and layer
 
         # Assign layer values
-        substrate_properties = self._model_config.substrate_properties
-        layer_properties = self._model_config.layer_properties
+        substrate_properties = self._config.substrate_properties
+        layer_properties = self._config.layer_properties
 
         self.local_initial_stress = assign_values_based_on_boundaries(
-            self.W0, partioning,
+            self.scalar_quad_space, partioning,
             [substrate_properties.yield_strength, layer_properties.yield_strength]
         )
 
         self.local_shear_modulus = assign_values_based_on_boundaries(
-            self.W0, partioning,
+            self.scalar_quad_space, partioning,
             [substrate_properties.shear_modulus, layer_properties.shear_modulus]
         )
 
         self.local_linear_hardening = assign_values_based_on_boundaries(
-            self.W0, partioning,
+            self.scalar_quad_space, partioning,
             [substrate_properties.linear_isotropic_hardening, layer_properties.linear_isotropic_hardening]
         )
 
@@ -426,71 +425,71 @@ class LinearElastoPlasticModel:
     def _setup_function_spaces(self) -> None:
         """Set up the function spaces required for the simulation."""
         mesh_cell = self._mesh.ufl_cell()
-        self.deg_stress = self._model_config.finite_element_degree_stress
-        deg_u = self._model_config.finite_element_degree_u
+        self.stress_degree = self._config.finite_element_degree_stress
+        deg_u = self._config.finite_element_degree_u
 
         # Create vector and scalar function spaces
-        self.V = fe.VectorFunctionSpace(self._mesh, "CG", deg_u)
+        self.vector_space = fe.VectorFunctionSpace(self._mesh, "CG", deg_u)
         self.P0 = fe.FunctionSpace(self._mesh, "DG", 0)
 
         # Setup quadrature spaces
-        quad_element = fe.FiniteElement("Quadrature", mesh_cell, degree=self.deg_stress, quad_scheme='default')
-        self.W0 = fe.FunctionSpace(self._mesh, quad_element)
+        quad_element = fe.FiniteElement("Quadrature", mesh_cell, degree=self.stress_degree, quad_scheme='default')
+        self.scalar_quad_space = fe.FunctionSpace(self._mesh, quad_element)
 
-        vec_element = fe.VectorElement("Quadrature", mesh_cell, degree=self.deg_stress, dim=4, quad_scheme='default')
-        self.W = fe.FunctionSpace(self._mesh, vec_element)
+        vec_element = fe.VectorElement("Quadrature", mesh_cell, degree=self.stress_degree, dim=4, quad_scheme='default')
+        self.tensor_quad_space = fe.FunctionSpace(self._mesh, vec_element)
 
     def _setup_displacement_functions(self):
         """Initialize functions for total, correction, and current increment displacements."""
-        self.u = fe.Function(self.V, name="Total displacement")
-        self.du = fe.Function(self.V, name="Iteration correction")
-        self.Du = fe.Function(self.V, name="Current increment")
+        self.total_displacement = fe.Function(self.vector_space, name="Total displacement")
+        self.du = fe.Function(self.vector_space, name="Iteration correction")
+        self.Du = fe.Function(self.vector_space, name="Current increment")
 
     def _setup_stress_functions(self):
         """Initialize functions for stress, previous stress, and elastic domain normal."""
-        self.sig = fe.Function(self.W, name="Stress")
-        self.sig_old = fe.Function(self.W, name="Previous stress")
-        self.n_elas = fe.Function(self.W, name="Elastic domain normal")
+        self.stress = fe.Function(self.tensor_quad_space, name="Stress")
+        self.old_stress = fe.Function(self.tensor_quad_space, name="Previous stress")
+        self.n_elas = fe.Function(self.tensor_quad_space, name="Elastic domain normal")
 
     def _setup_other_functions(self):
         """Initialize miscellaneous functions."""
-        self.beta = fe.Function(self.W0, name="Beta")
-        self.p = fe.Function(self.W0, name="Cumulative plastic strain")
-        self.sig_hyd = fe.Function(self.W0, name="Hydrostatic stress")
-        self.sig_0_local = fe.Function(self.W0, name="local sig0")
-        self.mu_local = fe.Function(self.W0, name="local mu")
-        self.lmbda_local = fe.Function(self.W0, name="local lmbda")
-        self.C_linear_h_local = fe.Function(self.W0, name="local hardening factor")
+        self.beta = fe.Function(self.scalar_quad_space, name="Beta")
+        self.cum_plstic_strain = fe.Function(self.scalar_quad_space, name="Cumulative plastic strain")
+        self.hydrostatic_stress = fe.Function(self.scalar_quad_space, name="Hydrostatic stress")
+        self.sig_0_local = fe.Function(self.scalar_quad_space, name="local sig0")
+        self.mu_local = fe.Function(self.scalar_quad_space, name="local mu")
+        self.lmbda_local = fe.Function(self.scalar_quad_space, name="local lmbda")
+        self.C_linear_h_local = fe.Function(self.scalar_quad_space, name="local hardening factor")
 
         self.sig_hyd_avg = fe.Function(self.P0, name="Avg. Hydrostatic stress")
         self.sig_0_test = fe.Function(self.P0, name="test")
         self.lmbda_test = fe.Function(self.P0, name="test2")
 
-        self.metadata = {"quadrature_degree": self.deg_stress, "quadrature_scheme": "default"}
+        self.metadata = {"quadrature_degree": self.stress_degree, "quadrature_scheme": "default"}
         self.dxm = ufl.dx(metadata=self.metadata)
-        self.v = fe.TrialFunction(self.V)
-        self.u_ = fe.TestFunction(self.V)
+        self.v = fe.TrialFunction(self.vector_space)
+        self.u_ = fe.TestFunction(self.vector_space)
 
     def _setup_local_properties(self):
         """Setup local properties of the model."""
         self.mu_local_DG = fe.Function(self.P0)
-        self._assign_local_values(self._model_config.substrate_properties.shear_modulus,
-                                  self._model_config.layer_properties.shear_modulus,
+        self._assign_local_values(self._config.substrate_properties.shear_modulus,
+                                  self._config.layer_properties.shear_modulus,
                                   self.mu_local_DG)
 
         self.lmbda_local_DG = fe.Function(self.P0)
-        self._assign_local_values(self._model_config.substrate_properties.first_lame_parameter,
-                                  self._model_config.layer_properties.first_lame_parameter,
+        self._assign_local_values(self._config.substrate_properties.first_lame_parameter,
+                                  self._config.layer_properties.first_lame_parameter,
                                   self.lmbda_local_DG)
 
         self.local_linear_hardening_DG = fe.Function(self.P0)
-        self._assign_local_values(self._model_config.substrate_properties.linear_isotropic_hardening,
-                                  self._model_config.layer_properties.linear_isotropic_hardening,
+        self._assign_local_values(self._config.substrate_properties.linear_isotropic_hardening,
+                                  self._config.layer_properties.linear_isotropic_hardening,
                                   self.local_linear_hardening_DG)
 
     def _assign_local_values(self, values: float, outer_values: float, local_DG: fe.Function) -> None:
         """Assign values based on the specified condition."""
-        width = self._model_config.width
+        width = self._config.width
         dofmap = self.P0.tabulate_dof_coordinates()[:]
         vec = np.full(dofmap.shape[0], values)
         vec[dofmap[:, 0] > width] = outer_values
@@ -503,7 +502,7 @@ class LinearElastoPlasticModel:
                                                              self.mu_local_DG,
                                                              self.local_linear_hardening_DG, self.beta,
                                                              self.lmbda_local_DG)) * self.dxm
-        self.newton_rhs = -fe.inner(compute_strain_tensor(self.u_), as_3D_tensor(self.sig)) * self.dxm
+        self.newton_rhs = -fe.inner(compute_strain_tensor(self.u_), as_3D_tensor(self.stress)) * self.dxm
 
     @property
     def mesh(self) -> 'MeshType':
@@ -513,7 +512,7 @@ class LinearElastoPlasticModel:
     @property
     def model_config(self) -> LinearElastoPlasticConfig:
         """Provide access to simulation configuration."""
-        return self._model_config
+        return self._config
 
     @property
     def integration_time_limit(self):
