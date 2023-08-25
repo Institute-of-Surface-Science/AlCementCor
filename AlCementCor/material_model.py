@@ -276,16 +276,11 @@ class LinearElastoPlasticIntegrator:
 
         check_divergence(newton_res_norm)
 
-        self.update_and_store_results(plastic_strain_update)
+        self.model.total_displacement.assign(self.model.total_displacement + self.model.current_displacement_increment)
+        self.model.cum_plstic_strain.assign(self.model.cum_plstic_strain + local_project(plastic_strain_update, self.model.scalar_quad_space, self.model.dxm))
+        self.model.old_stress.assign(self.model.stress)
+        self.model.sig_hyd_avg.assign(fe.project(self.model.hydrostatic_stress, self.model.P0))
         self.time_step = self.time_controller.update(newton_res_norm)
-
-    def update_and_store_results(self, dp_):
-        u, Du, p, sig, sig_old, sig_hyd, sig_hyd_avg = self.model.total_displacement, self.model.Du, self.model.cum_plstic_strain, self.model.stress, self.model.old_stress, self.model.hydrostatic_stress, self.model.sig_hyd_avg
-
-        u.assign(u + Du)
-        p.assign(p + local_project(dp_, self.model.scalar_quad_space, self.model.dxm))
-        sig_old.assign(sig)
-        sig_hyd_avg.assign(fe.project(sig_hyd, self.model.P0))
 
     def run_newton_raphson(self, system_matrix, residual):
         """
@@ -303,11 +298,11 @@ class LinearElastoPlasticIntegrator:
         while iteration_counter == 0 or (
                 initial_residual_norm > 0 and current_residual_norm / initial_residual_norm > self.tolerance and iteration_counter < self.max_iters):
             # Solve the linear system
-            fe.solve(system_matrix, self.model.du.vector(), residual, "mumps")
+            fe.solve(system_matrix, self.model.displacement_correction.vector(), residual, "mumps")
 
             # Update solution
-            self.model.Du.assign(self.model.Du + self.model.du)
-            strain_change = compute_strain_tensor(self.model.Du)
+            self.model.current_displacement_increment.assign(self.model.current_displacement_increment + self.model.displacement_correction)
+            strain_change = compute_strain_tensor(self.model.current_displacement_increment)
 
             # Project the new stress
             stress_update, elastic_strain_update, back_stress_update, pressure_change, hydrostatic_stress_update = proj_sig(
@@ -349,8 +344,8 @@ class LinearElastoPlasticModel:
 
         # Displacement functions
         self.total_displacement = None
-        self.du = None
-        self.Du = None
+        self.displacement_correction = None
+        self.current_displacement_increment = None
 
         # Stress functions
         self.stress = None
@@ -442,8 +437,8 @@ class LinearElastoPlasticModel:
     def _setup_displacement_functions(self):
         """Initialize functions for total, correction, and current increment displacements."""
         self.total_displacement = fe.Function(self.vector_space, name="Total displacement")
-        self.du = fe.Function(self.vector_space, name="Iteration correction")
-        self.Du = fe.Function(self.vector_space, name="Current increment")
+        self.displacement_correction = fe.Function(self.vector_space, name="Iteration correction")
+        self.current_displacement_increment = fe.Function(self.vector_space, name="Current increment")
 
     def _setup_stress_functions(self):
         """Initialize functions for stress, previous stress, and elastic domain normal."""
