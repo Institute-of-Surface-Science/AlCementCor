@@ -29,7 +29,10 @@ def logo():
 
 def summarize_and_print_config(simulation_config: SimulationConfig,
                                materials: List[MaterialProperties]) -> None:
-    terminal_width = os.get_terminal_size().columns
+    try:
+        terminal_width = os.get_terminal_size().columns
+    except OSError:
+        terminal_width = 80 
 
     print(logo())
 
