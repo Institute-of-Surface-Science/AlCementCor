@@ -202,10 +202,25 @@ class HardeningModel(Enum):
 def compute_hardening(plastic_strain: float, initial_stress: float, hardening_params: dict,
                       model_type: HardeningModel = HardeningModel.LINEAR) -> (float, float):
     """
-    Compute flow stress and its derivative based on the hardening model.
+    Compute the flow stress and its derivative for a given plastic strain based on the selected hardening model.
+
+    Parameters:
+    - plastic_strain (float): The accumulated plastic strain.
+    - initial_stress (float): The stress value at zero plastic strain (initial yield stress).
+    - hardening_params (dict): Parameters for the selected hardening model.
+    - model_type (HardeningModel): Enum indicating the type of hardening model. Default is LINEAR.
+
+    Returns:
+    - flow_stress (float): The flow stress for the given plastic strain.
+    - stress_derivative (float): The derivative of the flow stress with respect to the plastic strain.
+
+    Note:
+    - Linear model: flow_stress = initial_stress + linear_coefficient * plastic_strain
+    - Ludwik model: flow_stress = initial_stress + ludwik_nonlinear_coefficient * (plastic_strain + TOL) ^ ludwik_exponent
+    - Swift model: flow_stress = initial_stress * (1 + plastic_strain / swift_epsilon_0) ^ swift_exponent
     """
 
-    # Constants
+    # Small tolerance to prevent division by zero or raise to power issues
     TOLERANCE = 1E-12
 
     flow_stress = 0.0
@@ -221,7 +236,10 @@ def compute_hardening(plastic_strain: float, initial_stress: float, hardening_pa
         nonlinear_coefficient = hardening_params.get('ludwik_nonlinear_coefficient', 0)
         exponent = hardening_params.get('ludwik_exponent', 0)
 
+        # Flow stress computation using the Ludwik model formula
         flow_stress = initial_stress + nonlinear_coefficient * (plastic_strain + TOLERANCE) ** exponent
+
+        # Derivative with respect to the plastic strain for the Ludwik model
         stress_derivative = nonlinear_coefficient * exponent * (plastic_strain + TOLERANCE) ** (exponent - 1)
 
     # Swift hardening model
@@ -229,7 +247,10 @@ def compute_hardening(plastic_strain: float, initial_stress: float, hardening_pa
         epsilon_0 = hardening_params.get('swift_epsilon_0', 0)
         exponent = hardening_params.get('swift_exponent', 0)
 
+        # Flow stress computation using the Swift model formula
         flow_stress = initial_stress * (1 + plastic_strain / epsilon_0) ** exponent
+
+        # Derivative with respect to the plastic strain for the Swift model
         stress_derivative = initial_stress * exponent * (1 + plastic_strain / epsilon_0) ** (exponent - 1) / epsilon_0
 
     # Unsupported model type
@@ -237,6 +258,7 @@ def compute_hardening(plastic_strain: float, initial_stress: float, hardening_pa
         raise ValueError(f"Unsupported hardening model: {model_type.value}")
 
     return flow_stress, stress_derivative
+
 
 def proj_sig(deps, old_sig,  mu_local, lmbda_local_DG, mu_local_DG, k, dk_dp):
     """
