@@ -89,15 +89,14 @@ def create_output_file(filename):
 def main() -> None:
     args = parse_command_line_args()
 
-    simulation_config = LinearElastoPlasticConfig(args.config)
-    model = LinearElastoPlasticModel(simulation_config)
+    #simulation_config = LinearElastoPlasticConfig(args.config)
+    model = LinearElastoPlasticModel(args.config)
+    simulation_config = model.model_config.simulation_config
     integrator = LinearElastoPlasticIntegrator(model)
 
-    summarize_and_print_config(simulation_config.simulation_config,
-                               materials=[model.substrate_properties, model.layer_properties])
+    summarize_and_print_config(simulation_config, materials=[model.substrate_properties, model.layer_properties])
 
-    # todo: make settable
-    results_file = create_output_file("plasticity_results.xdmf")
+    results_file = create_output_file(simulation_config.output_file)
 
     time = 0
     timestep_count = 1

@@ -337,8 +337,8 @@ class LinearElastoPlasticIntegrator:
 
 class LinearElastoPlasticModel:
 
-    def __init__(self, config_file: "LinearElastoPlasticConfig"):
-        self._simulation_config = config_file
+    def __init__(self, config_file: str):
+        self._model_config = LinearElastoPlasticConfig(config_file)
 
         # Function spaces
         self.deg_stress: int = -1
@@ -384,21 +384,21 @@ class LinearElastoPlasticModel:
         self.newton_rhs = None
 
         # Geometry setup
-        self._mesh = self._simulation_config.mesh
-        self.l_x = self._simulation_config.l_x
-        self.l_y = self._simulation_config.l_y
+        self._mesh = self._model_config.mesh
+        self.l_x = self._model_config.l_x
+        self.l_y = self._model_config.l_y
 
         self._setup()
 
         # Set up boundary conditions
-        self.boundary = LinearElastoPlasticBnd(self._simulation_config, self.V)
+        self.boundary = LinearElastoPlasticBnd(self._model_config, self.V)
 
         # Define boundary and values
-        partioning = [self._simulation_config.width]  # Assuming the width is the "boundary" between substrate and layer
+        partioning = [self._model_config.width]  # Assuming the width is the "boundary" between substrate and layer
 
         # Assign layer values
-        substrate_properties = self._simulation_config.substrate_properties
-        layer_properties = self._simulation_config.layer_properties
+        substrate_properties = self._model_config.substrate_properties
+        layer_properties = self._model_config.layer_properties
 
         self.local_initial_stress = assign_values_based_on_boundaries(
             self.W0, partioning,
@@ -426,8 +426,8 @@ class LinearElastoPlasticModel:
     def _setup_function_spaces(self) -> None:
         """Set up the function spaces required for the simulation."""
         mesh_cell = self._mesh.ufl_cell()
-        self.deg_stress = self._simulation_config.finite_element_degree_stress
-        deg_u = self._simulation_config.finite_element_degree_u
+        self.deg_stress = self._model_config.finite_element_degree_stress
+        deg_u = self._model_config.finite_element_degree_u
 
         # Create vector and scalar function spaces
         self.V = fe.VectorFunctionSpace(self._mesh, "CG", deg_u)
@@ -474,23 +474,23 @@ class LinearElastoPlasticModel:
     def _setup_local_properties(self):
         """Setup local properties of the model."""
         self.mu_local_DG = fe.Function(self.P0)
-        self._assign_local_values(self._simulation_config.substrate_properties.shear_modulus,
-                                  self._simulation_config.layer_properties.shear_modulus,
+        self._assign_local_values(self._model_config.substrate_properties.shear_modulus,
+                                  self._model_config.layer_properties.shear_modulus,
                                   self.mu_local_DG)
 
         self.lmbda_local_DG = fe.Function(self.P0)
-        self._assign_local_values(self._simulation_config.substrate_properties.first_lame_parameter,
-                                  self._simulation_config.layer_properties.first_lame_parameter,
+        self._assign_local_values(self._model_config.substrate_properties.first_lame_parameter,
+                                  self._model_config.layer_properties.first_lame_parameter,
                                   self.lmbda_local_DG)
 
         self.local_linear_hardening_DG = fe.Function(self.P0)
-        self._assign_local_values(self._simulation_config.substrate_properties.linear_isotropic_hardening,
-                                  self._simulation_config.layer_properties.linear_isotropic_hardening,
+        self._assign_local_values(self._model_config.substrate_properties.linear_isotropic_hardening,
+                                  self._model_config.layer_properties.linear_isotropic_hardening,
                                   self.local_linear_hardening_DG)
 
     def _assign_local_values(self, values: float, outer_values: float, local_DG: fe.Function) -> None:
         """Assign values based on the specified condition."""
-        width = self._simulation_config.width
+        width = self._model_config.width
         dofmap = self.P0.tabulate_dof_coordinates()[:]
         vec = np.full(dofmap.shape[0], values)
         vec[dofmap[:, 0] > width] = outer_values
@@ -511,25 +511,25 @@ class LinearElastoPlasticModel:
         return self._mesh
 
     @property
-    def simulation_config(self) -> LinearElastoPlasticConfig:
+    def model_config(self) -> LinearElastoPlasticConfig:
         """Provide access to simulation configuration."""
-        return self._simulation_config
+        return self._model_config
 
     @property
     def integration_time_limit(self):
-        return self.simulation_config.simulation_config.integration_time_limit
+        return self.model_config.simulation_config.integration_time_limit
 
     @property
     def total_timesteps(self):
-        return self.simulation_config.simulation_config.total_timesteps
+        return self.model_config.simulation_config.total_timesteps
 
     @property
     def substrate_properties(self):
-        return self.simulation_config.substrate_properties
+        return self.model_config.substrate_properties
 
     @property
     def layer_properties(self):
-        return self.simulation_config.layer_properties
+        return self.model_config.layer_properties
 
 
 class LinearElastoPlasticBnd:

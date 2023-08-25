@@ -10,6 +10,8 @@
     "integration_time_limit": 17500,
     "total_timesteps": 10000,
     "field_input_file": "CementOutput.json",
+    "output_folder": "out",
+    "output_file": "plasticity_results.xdmf",
     "mesh_resolution": {
       "x": 200,
       "y": 100

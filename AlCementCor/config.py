@@ -65,6 +65,8 @@ class SimulationFields(Enum):
     INTEGRATION_TIME_LIMIT = "integration_time_limit"
     TOTAL_TIMESTEPS = "total_timesteps"
     FIELD_INPUT_FILE = "field_input_file"
+    OUTPUT_FOLDER = "output_folder"
+    OUTPUT_FILE = "output_file"
 
     MATERIAL_DIMENSIONS = "material_dimensions"
     LENGTH = "length"
@@ -295,3 +297,11 @@ class SimulationConfig:
     @property
     def boundary_condition_bottom(self) -> Any:
         return self.get(SimulationFields.BOUNDARY_CONDITIONS.value, SimulationFields.BOTTOM.value, None)
+
+    @property
+    def output_folder(self) -> Any:
+        return self.get(SimulationFields.SIMULATION_PARAMETERS.value, SimulationFields.OUTPUT_FOLDER.value)
+
+    @property
+    def output_file(self) -> Any:
+        return self.get(SimulationFields.SIMULATION_PARAMETERS.value, SimulationFields.OUTPUT_FILE.value)

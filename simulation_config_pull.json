@@ -8,8 +8,10 @@
     "simulation_parameters": {
         "use_two_material_layers": true,
         "integration_time_limit": 175000,
-        "total_timesteps": 10000
+        "total_timesteps": 10000,
         "field_input_file": null,
+        "output_folder": "out",
+        "output_file": "plasticity_results.xdmf",
         "mesh_resolution": {
             "x": 50,
             "y": 100

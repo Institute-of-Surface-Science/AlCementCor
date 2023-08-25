@@ -177,7 +177,3 @@ class LinearElastoPlasticConfig:
     @property
     def simulation_config(self):
         return self._simulation_config
-
-    @property
-    def integration_time_limit(self):
-        return self._simulation_config.integration_time_limit
