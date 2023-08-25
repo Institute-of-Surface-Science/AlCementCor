@@ -2,6 +2,7 @@ import ufl
 import fenics as fe
 import numpy as np
 
+from enum import Enum
 from AlCementCor.bnd import SquareStrainRate, FunctionDisplacementBoundaryCondition
 from AlCementCor.config import SimulationConfig
 from AlCementCor.fenics_helpers import as_3D_tensor, local_project, assign_values_based_on_boundaries
@@ -192,29 +193,37 @@ def ppos(x):
     """
     return (x + abs(x)) / 2.
 
-def compute_hardening(old_p, sig_0_local, hardening_params, model_type='linear'):
+class HardeningModel(Enum):
+    LINEAR = 'linear'
+    LUDWIK = 'ludwik'
+    SWIFT = 'swift'
+
+
+def compute_hardening(old_p: float, sig_0_local: float, hardening_params: dict, model_type: HardeningModel = HardeningModel.LINEAR) -> (float, float):
     """
     Compute flow stress and its derivative based on the hardening model.
     """
 
-    if model_type == 'linear':
-        k = sig_0_local + hardening_params['C_linear'] * old_p
-        dk_dp = hardening_params['C_linear']
+    TOLERANCE = 1E-12
 
-    elif model_type == 'ludwik':
-        C_nlin = hardening_params['C_nlin_ludwik']
-        C_exp = hardening_params['C_exponent_ludwik']
-        k = sig_0_local + C_nlin * pow(old_p + 1E-12, C_exp)
-        dk_dp = C_nlin * C_exp * pow(old_p + 1E-12, C_exp - 1)
+    if model_type == HardeningModel.LINEAR:
+        k = sig_0_local + hardening_params.get('C_linear', 0) * old_p
+        dk_dp = hardening_params.get('C_linear', 0)
 
-    elif model_type == 'swift':
-        C_eps0 = hardening_params['C_swift_eps0']
-        C_exp = hardening_params['C_exponent_swift']
-        k = sig_0_local * pow(1 + old_p / C_eps0, C_exp)
-        dk_dp = sig_0_local * C_exp * pow(1 + old_p / C_eps0, C_exp - 1) / C_eps0
+    elif model_type == HardeningModel.LUDWIK:
+        C_nlin = hardening_params.get('C_nlin_ludwik', 0)
+        C_exp = hardening_params.get('C_exponent_ludwik', 0)
+        k = sig_0_local + C_nlin * (old_p + TOLERANCE) ** C_exp
+        dk_dp = C_nlin * C_exp * (old_p + TOLERANCE) ** (C_exp - 1)
+
+    elif model_type == HardeningModel.SWIFT:
+        C_eps0 = hardening_params.get('C_swift_eps0', 0)
+        C_exp = hardening_params.get('C_exponent_swift', 0)
+        k = sig_0_local * (1 + old_p / C_eps0) ** C_exp
+        dk_dp = sig_0_local * C_exp * (1 + old_p / C_eps0) ** (C_exp - 1) / C_eps0
 
     else:
-        raise ValueError(f"Unsupported hardening model: {model_type}")
+        raise ValueError(f"Unsupported hardening model: {model_type.value}")
 
     return k, dk_dp
 
