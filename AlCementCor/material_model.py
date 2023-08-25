@@ -258,31 +258,43 @@ def proj_sig(deps, old_sig, old_p, sig_0_local, C_linear_h_local, mu_local, lmbd
 class LinearElastoPlasticIntegrator:
     def __init__(self, model: 'SimulationModel'):
         self.model = model
-
-        # todo: make settable
-        self.max_iters, self.tolerance = 10, 1e-8  # Newton-Raphson procedure parameters
+        self._MAX_ITERS = 10  # Newton-Raphson procedure parameters
+        self._TOLERANCE = 1e-8
         self.time_step = self.model.integration_time_limit / self.model.total_timesteps
-
-        self.time_controller = PITimeController(self.time_step, 1e-2 * self.tolerance)
+        self.time_controller = PITimeController(self.time_step, 0.01 * self._TOLERANCE)
         self.time = 0.0
 
     def single_time_step_integration(self):
+        """Perform a single time step integration."""
         self.time += self.time_step
-        for condition in self.model.boundary.conditions:
-            condition.update_time(self.time_step)
+        self._update_boundary_conditions()
 
-        A, Res = fe.assemble_system(self.model.newton_lhs, self.model.newton_rhs, self.model.boundary.bc)
-        newton_res_norm, plastic_strain_update = self.run_newton_raphson(A, Res)
+        system_matrix, residual = fe.assemble_system(self.model.newton_lhs, self.model.newton_rhs,
+                                                     self.model.boundary.bc)
+        newton_res_norm, plastic_strain_update = self._run_newton_raphson(system_matrix, residual)
 
         check_divergence(newton_res_norm)
 
-        self.model.total_displacement.assign(self.model.total_displacement + self.model.current_displacement_increment)
-        self.model.cum_plstic_strain.assign(self.model.cum_plstic_strain + local_project(plastic_strain_update, self.model.scalar_quad_space, self.model.dxm))
-        self.model.old_stress.assign(self.model.stress)
-        self.model.sig_hyd_avg.assign(fe.project(self.model.hydrostatic_stress, self.model.P0))
+        self._update_model_values(plastic_strain_update)
         self.time_step = self.time_controller.update(newton_res_norm)
 
-    def run_newton_raphson(self, system_matrix, residual):
+    def _update_boundary_conditions(self):
+        """Update boundary conditions based on the current time step."""
+        for condition in self.model.boundary.conditions:
+            condition.update_time(self.time_step)
+
+    def _update_model_values(self, plastic_strain_update: float):
+        """Update model's internal values after a successful Newton-Raphson step."""
+        self.model.total_displacement.assign(self.model.total_displacement + self.model.current_displacement_increment)
+
+        self.model.cum_plstic_strain.assign(
+        self.model.cum_plstic_strain + local_project(plastic_strain_update, self.model.scalar_quad_space,
+                                                     self.model.dxm))
+        self.model.old_stress.assign(self.model.stress)
+        self.model.sig_hyd_avg.assign(fe.project(self.model.hydrostatic_stress, self.model.P0))
+
+
+    def _run_newton_raphson(self, system_matrix, residual):
         """
         Solve a nonlinear problem using the Newton-Raphson method.
         """
@@ -296,7 +308,7 @@ class LinearElastoPlasticIntegrator:
 
         # Start iterations
         while iteration_counter == 0 or (
-                initial_residual_norm > 0 and current_residual_norm / initial_residual_norm > self.tolerance and iteration_counter < self.max_iters):
+                initial_residual_norm > 0 and current_residual_norm / initial_residual_norm > self._TOLERANCE and iteration_counter < self._MAX_ITERS):
             # Solve the linear system
             fe.solve(system_matrix, self.model.displacement_correction.vector(), residual, "mumps")
 
