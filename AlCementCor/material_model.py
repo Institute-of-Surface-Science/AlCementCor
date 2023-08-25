@@ -199,33 +199,44 @@ class HardeningModel(Enum):
     SWIFT = 'swift'
 
 
-def compute_hardening(old_p: float, sig_0_local: float, hardening_params: dict, model_type: HardeningModel = HardeningModel.LINEAR) -> (float, float):
+def compute_hardening(plastic_strain: float, initial_stress: float, hardening_params: dict,
+                      model_type: HardeningModel = HardeningModel.LINEAR) -> (float, float):
     """
     Compute flow stress and its derivative based on the hardening model.
     """
 
+    # Constants
     TOLERANCE = 1E-12
 
+    flow_stress = 0.0
+    stress_derivative = 0.0
+
+    # Linear hardening model
     if model_type == HardeningModel.LINEAR:
-        k = sig_0_local + hardening_params.get('C_linear', 0) * old_p
-        dk_dp = hardening_params.get('C_linear', 0)
+        flow_stress = initial_stress + hardening_params.get('C_linear', 0) * plastic_strain
+        stress_derivative = hardening_params.get('C_linear', 0)
 
+    # Ludwik hardening model
     elif model_type == HardeningModel.LUDWIK:
-        C_nlin = hardening_params.get('C_nlin_ludwik', 0)
-        C_exp = hardening_params.get('C_exponent_ludwik', 0)
-        k = sig_0_local + C_nlin * (old_p + TOLERANCE) ** C_exp
-        dk_dp = C_nlin * C_exp * (old_p + TOLERANCE) ** (C_exp - 1)
+        nonlinear_coefficient = hardening_params.get('C_nlin_ludwik', 0)
+        exponent = hardening_params.get('C_exponent_ludwik', 0)
 
+        flow_stress = initial_stress + nonlinear_coefficient * (plastic_strain + TOLERANCE) ** exponent
+        stress_derivative = nonlinear_coefficient * exponent * (plastic_strain + TOLERANCE) ** (exponent - 1)
+
+    # Swift hardening model
     elif model_type == HardeningModel.SWIFT:
-        C_eps0 = hardening_params.get('C_swift_eps0', 0)
-        C_exp = hardening_params.get('C_exponent_swift', 0)
-        k = sig_0_local * (1 + old_p / C_eps0) ** C_exp
-        dk_dp = sig_0_local * C_exp * (1 + old_p / C_eps0) ** (C_exp - 1) / C_eps0
+        epsilon_0 = hardening_params.get('C_swift_eps0', 0)
+        exponent = hardening_params.get('C_exponent_swift', 0)
 
+        flow_stress = initial_stress * (1 + plastic_strain / epsilon_0) ** exponent
+        stress_derivative = initial_stress * exponent * (1 + plastic_strain / epsilon_0) ** (exponent - 1) / epsilon_0
+
+    # Unsupported model type
     else:
         raise ValueError(f"Unsupported hardening model: {model_type.value}")
 
-    return k, dk_dp
+    return flow_stress, stress_derivative
 
 def proj_sig(deps, old_sig,  mu_local, lmbda_local_DG, mu_local_DG, k, dk_dp):
     """
