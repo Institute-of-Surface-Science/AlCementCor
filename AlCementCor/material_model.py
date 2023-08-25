@@ -192,32 +192,11 @@ def ppos(x):
     """
     return (x + abs(x)) / 2.
 
-
-def proj_sig(deps, old_sig, old_p, sig_0_local, mu_local, lmbda_local_DG, mu_local_DG, hardening_params,
-             model_type='linear'):
+def compute_hardening(old_p, sig_0_local, hardening_params, model_type='linear'):
     """
-    :param deps: Change in strain
-    :param old_sig: Old stress
-    :param old_p: Old plastic strain
-    :param sig_0_local: Initial stress for hardening
-    :param hardening_params: Dictionary containing hardening parameters for the models
-    :param mu_local: Shear modulus
-    :param lmbda_local_DG: Lambda for the DG method
-    :param mu_local_DG: Mu for the DG method
-    :param model_type: Type of hardening model ('linear', 'ludwik', 'swift')
-    :return: Updated stress and related values
+    Compute flow stress and its derivative based on the hardening model.
     """
 
-    # Update stress from change in strain (deps)
-    sig_n = as_3D_tensor(old_sig)
-    sig_elas = sig_n + compute_stress(deps, lmbda_local_DG, mu_local_DG)
-
-    # Trial stress
-    s = fe.dev(sig_elas)
-    # Von-Mises stress or equivalent trial stress
-    sig_eq = fe.sqrt(3 / 2. * fe.inner(s, s))
-
-    # Calculate flow stress and its derivative based on hardening law
     if model_type == 'linear':
         k = sig_0_local + hardening_params['C_linear'] * old_p
         dk_dp = hardening_params['C_linear']
@@ -236,6 +215,27 @@ def proj_sig(deps, old_sig, old_p, sig_0_local, mu_local, lmbda_local_DG, mu_loc
 
     else:
         raise ValueError(f"Unsupported hardening model: {model_type}")
+
+    return k, dk_dp
+
+def proj_sig(deps, old_sig,  mu_local, lmbda_local_DG, mu_local_DG, k, dk_dp):
+    """
+    :param deps: Change in strain
+    :param old_sig: Old stress
+    :param mu_local: Shear modulus
+    :param lmbda_local_DG: Lambda for the DG method
+    :param mu_local_DG: Mu for the DG method
+    :return: Updated stress and related values
+    """
+
+    # Update stress from change in strain (deps)
+    sig_n = as_3D_tensor(old_sig)
+    sig_elas = sig_n + compute_stress(deps, lmbda_local_DG, mu_local_DG)
+
+    # Trial stress
+    s = fe.dev(sig_elas)
+    # Von-Mises stress or equivalent trial stress
+    sig_eq = fe.sqrt(3 / 2. * fe.inner(s, s))
 
     # Yield surface
     f_elas = sig_eq - k
@@ -331,11 +331,11 @@ class LinearElastoPlasticIntegrator:
                 'C_linear': m.local_linear_hardening
             }
 
+            k, dk_dp = compute_hardening(m.cum_plstic_strain, m.local_initial_stress, hardening_params)
+
             # Project the new stress
             stress_update, elastic_strain_update, back_stress_update, pressure_change, hydrostatic_stress_update = proj_sig(
-                strain_change, m.old_stress, m.cum_plstic_strain, m.local_initial_stress,
-                m.local_shear_modulus, m.lmbda_local_DG, m.mu_local_DG, hardening_params,
-                model_type='linear')
+                strain_change, m.old_stress, m.local_shear_modulus, m.lmbda_local_DG, m.mu_local_DG, k, dk_dp)
 
             # Update field values
             local_project(stress_update, m.tensor_quad_space, m.dxm, m.stress)
