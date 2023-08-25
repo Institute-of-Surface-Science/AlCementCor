@@ -213,21 +213,21 @@ def compute_hardening(plastic_strain: float, initial_stress: float, hardening_pa
 
     # Linear hardening model
     if model_type == HardeningModel.LINEAR:
-        flow_stress = initial_stress + hardening_params.get('C_linear', 0) * plastic_strain
-        stress_derivative = hardening_params.get('C_linear', 0)
+        flow_stress = initial_stress + hardening_params.get('linear_coefficient', 0) * plastic_strain
+        stress_derivative = hardening_params.get('linear_coefficient', 0)
 
     # Ludwik hardening model
     elif model_type == HardeningModel.LUDWIK:
-        nonlinear_coefficient = hardening_params.get('C_nlin_ludwik', 0)
-        exponent = hardening_params.get('C_exponent_ludwik', 0)
+        nonlinear_coefficient = hardening_params.get('ludwik_nonlinear_coefficient', 0)
+        exponent = hardening_params.get('ludwik_exponent', 0)
 
         flow_stress = initial_stress + nonlinear_coefficient * (plastic_strain + TOLERANCE) ** exponent
         stress_derivative = nonlinear_coefficient * exponent * (plastic_strain + TOLERANCE) ** (exponent - 1)
 
     # Swift hardening model
     elif model_type == HardeningModel.SWIFT:
-        epsilon_0 = hardening_params.get('C_swift_eps0', 0)
-        exponent = hardening_params.get('C_exponent_swift', 0)
+        epsilon_0 = hardening_params.get('swift_epsilon_0', 0)
+        exponent = hardening_params.get('swift_exponent', 0)
 
         flow_stress = initial_stress * (1 + plastic_strain / epsilon_0) ** exponent
         stress_derivative = initial_stress * exponent * (1 + plastic_strain / epsilon_0) ** (exponent - 1) / epsilon_0
@@ -348,7 +348,7 @@ class LinearElastoPlasticIntegrator:
 
             # Parameters for the hardening model
             hardening_params = {
-                'C_linear': m.local_linear_hardening
+                'linear_coefficient': m.local_linear_hardening
             }
 
             k, dk_dp = compute_hardening(m.cum_plstic_strain, m.local_initial_stress, hardening_params)
