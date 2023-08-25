@@ -401,7 +401,7 @@ class LinearElastoPlasticIntegrator:
             k, dk_dp = compute_hardening(m.cum_plstic_strain, m.local_initial_stress, hardening_params)
 
             # Project the new stress
-            stress_update, elastic_strain_update, back_stress_update, pressure_change, hydrostatic_stress_update = proj_sig(
+            stress_update, elastic_strain_update, back_stress_update, pressure_change, hydrostatic_stress_update = project_stress(
                 strain_change, m.old_stress, m.local_shear_modulus, m.lmbda_local_DG, m.mu_local_DG, k, dk_dp)
 
             # Update field values
