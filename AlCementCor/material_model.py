@@ -298,13 +298,16 @@ def project_stress(incremental_strain, previous_stress, shear_modulus, lambda_DG
     stress_3D = as_3D_tensor(previous_stress)
 
     # Elastic predictor step: Based on the assumption of purely elastic deformation, compute an intermediate or 'trial' stress.
+    # σ_trial = σ_old + D:ε_increment, where D is the elastic stiffness matrix.
     trial_stress = stress_3D + compute_stress(incremental_strain, lambda_DG, mu_DG)
 
     # Extract the deviatoric component (shape-changing part) of the trial stress.
     # This helps in determining if the material yields due to shear deformation.
+    # s = σ - (1/3)*tr(σ)*I
     deviatoric_stress = fe.dev(trial_stress)
 
     # Von Mises equivalent stress gives a scalar measure of stress magnitude, irrespective of the stress state's direction.
+    # σ_eq = sqrt(3/2) * ||s||
     equivalent_stress = fe.sqrt(3 / 2. * fe.inner(deviatoric_stress, deviatoric_stress))
 
     # The yield function evaluates the difference between the trial stress and the current yield stress.
@@ -312,12 +315,14 @@ def project_stress(incremental_strain, previous_stress, shear_modulus, lambda_DG
     yield_function_value = equivalent_stress - yield_stress
 
     # Using the yield function's value and the hardening derivative, compute the amount of plastic strain developed.
+    # Δp = f / (3*G + H'), where H' is the hardening derivative.
     plastic_strain_increment = ppos(yield_function_value) / (3 * shear_modulus + hardening_derivative)
 
     # The normal to the yield surface in stress space provides the direction of maximum resistance to deformation.
     yield_normal = deviatoric_stress * ppos(yield_function_value) / (equivalent_stress * yield_function_value)
 
     # Radial return maps the trial stress back to the yield surface along the normal direction.
+    # Δσ = - 3*G*Δp*n
     radial_return_factor = 3 * shear_modulus * plastic_strain_increment / equivalent_stress
 
     # Correcting the trial stress ensures that the updated stress state remains on or inside the yield surface.
