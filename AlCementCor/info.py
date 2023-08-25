@@ -32,7 +32,7 @@ def summarize_and_print_config(simulation_config: SimulationConfig,
     try:
         terminal_width = os.get_terminal_size().columns
     except OSError:
-        terminal_width = 80 
+        terminal_width = 80
 
     print(logo())
 
