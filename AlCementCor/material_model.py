@@ -277,7 +277,9 @@ def compute_hardening(plastic_strain: float, initial_stress: float, hardening_pa
 
 def project_stress(incremental_strain, previous_stress, shear_modulus, lambda_DG, mu_DG, yield_stress, hardening_derivative):
     """
-    Return-mapping algorithm for plasticity. Projects the trial stress onto the yield surface and computes the plastic strain and stress updates.
+    Return-mapping algorithm for elastoplasticity, which projects trial stresses back to the yield surface
+    in case of plastic deformation. The method is essential for numerical stability and accuracy in
+    plasticity simulations.
 
     Parameters:
     - incremental_strain (list or tensor): Incremental strain tensor.
@@ -292,34 +294,36 @@ def project_stress(incremental_strain, previous_stress, shear_modulus, lambda_DG
     - tuple: Contains updated stress tensor, normal to the yield surface, radial_return_factor, change in plastic strain, and volumetric stress.
     """
 
-    # Convert the previous stress tensor to a 3x3 tensor format.
+    # Convert the previous stress tensor to a 3D format for ease of calculations.
     stress_3D = as_3D_tensor(previous_stress)
 
-    # Elastic predictor step: Compute trial stress based on the elastic behavior.
+    # Elastic predictor step: Based on the assumption of purely elastic deformation, compute an intermediate or 'trial' stress.
     trial_stress = stress_3D + compute_stress(incremental_strain, lambda_DG, mu_DG)
 
-    # Compute the deviatoric part of the trial stress.
+    # Extract the deviatoric component (shape-changing part) of the trial stress.
+    # This helps in determining if the material yields due to shear deformation.
     deviatoric_stress = fe.dev(trial_stress)
 
-    # Calculate the Von-Mises equivalent trial stress.
+    # Von Mises equivalent stress gives a scalar measure of stress magnitude, irrespective of the stress state's direction.
     equivalent_stress = fe.sqrt(3 / 2. * fe.inner(deviatoric_stress, deviatoric_stress))
 
-    # Evaluate the distance of the trial stress from the yield surface.
+    # The yield function evaluates the difference between the trial stress and the current yield stress.
+    # If positive, it indicates that the material has yielded.
     yield_function_value = equivalent_stress - yield_stress
 
-    # Determine the change in plastic strain.
+    # Using the yield function's value and the hardening derivative, compute the amount of plastic strain developed.
     plastic_strain_increment = ppos(yield_function_value) / (3 * shear_modulus + hardening_derivative)
 
-    # Calculate the normal vector to the yield surface.
+    # The normal to the yield surface in stress space provides the direction of maximum resistance to deformation.
     yield_normal = deviatoric_stress * ppos(yield_function_value) / (equivalent_stress * yield_function_value)
 
-    # Calculate the factor for radial return, determining the adjustment required for the trial stress.
+    # Radial return maps the trial stress back to the yield surface along the normal direction.
     radial_return_factor = 3 * shear_modulus * plastic_strain_increment / equivalent_stress
 
-    # Adjust the trial stress to lie on the yield surface.
+    # Correcting the trial stress ensures that the updated stress state remains on or inside the yield surface.
     corrected_stress = trial_stress - radial_return_factor * deviatoric_stress
 
-    # Compute the hydrostatic or volumetric part of the corrected stress.
+    # Hydrostatic (volumetric) stress component represents the uniform compression or dilation in the material.
     volumetric_stress = (1. / 3) * fe.tr(corrected_stress)
 
     return fe.as_vector([corrected_stress[0, 0], corrected_stress[1, 1], corrected_stress[2, 2], corrected_stress[0, 1]]), \
