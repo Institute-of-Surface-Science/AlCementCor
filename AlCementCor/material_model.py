@@ -312,38 +312,38 @@ class LinearElastoPlasticIntegrator:
         iteration_counter = 0
         current_residual_norm = initial_residual_norm
 
+        m = self.model
+
         # Start iterations
         while iteration_counter == 0 or (
                 initial_residual_norm > 0 and current_residual_norm / initial_residual_norm > self._TOLERANCE and iteration_counter < self._MAX_ITERS):
             # Solve the linear system
-            fe.solve(system_matrix, self.model.displacement_correction.vector(), residual, "mumps")
+            fe.solve(system_matrix, m.displacement_correction.vector(), residual, "mumps")
 
             # Update solution
-            self.model.current_displacement_increment.assign(
-                self.model.current_displacement_increment + self.model.displacement_correction)
-            strain_change = compute_strain_tensor(self.model.current_displacement_increment)
+            m.current_displacement_increment.assign(
+                m.current_displacement_increment + m.displacement_correction)
+            strain_change = compute_strain_tensor(m.current_displacement_increment)
 
             # Parameters for the hardening model
             hardening_params = {
-                'C_linear': self.model.local_linear_hardening
+                'C_linear': m.local_linear_hardening
             }
 
             # Project the new stress
             stress_update, elastic_strain_update, back_stress_update, pressure_change, hydrostatic_stress_update = proj_sig(
-                strain_change, self.model.old_stress, self.model.cum_plstic_strain, self.model.local_initial_stress,
-                self.model.local_shear_modulus, self.model.lmbda_local_DG, self.model.mu_local_DG, hardening_params,
+                strain_change, m.old_stress, m.cum_plstic_strain, m.local_initial_stress,
+                m.local_shear_modulus, m.lmbda_local_DG, m.mu_local_DG, hardening_params,
                 model_type='linear')
 
             # Update field values
-            local_project(stress_update, self.model.tensor_quad_space, self.model.dxm, self.model.stress)
-            local_project(elastic_strain_update, self.model.tensor_quad_space, self.model.dxm, self.model.n_elas)
-            local_project(back_stress_update, self.model.scalar_quad_space, self.model.dxm, self.model.beta)
-            self.model.hydrostatic_stress.assign(
-                local_project(hydrostatic_stress_update, self.model.scalar_quad_space, self.model.dxm))
+            local_project(stress_update, m.tensor_quad_space, m.dxm, m.stress)
+            local_project(elastic_strain_update, m.tensor_quad_space, m.dxm, m.n_elas)
+            local_project(back_stress_update, m.scalar_quad_space, m.dxm, m.beta)
+            m.hydrostatic_stress.assign(local_project(hydrostatic_stress_update, m.scalar_quad_space, m.dxm))
 
             # Assemble system
-            system_matrix, residual = fe.assemble_system(self.model.newton_lhs, self.model.newton_rhs,
-                                                         self.model.boundary.bc_iter)
+            system_matrix, residual = fe.assemble_system(m.newton_lhs, m.newton_rhs, m.boundary.bc_iter)
 
             # Update residual norm
             current_residual_norm = residual.norm("l2")
