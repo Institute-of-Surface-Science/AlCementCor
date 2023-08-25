@@ -192,59 +192,66 @@ def ppos(x):
     """
     return (x + abs(x)) / 2.
 
+def proj_sig(deps, old_sig, old_p, sig_0_local, mu_local, lmbda_local_DG, mu_local_DG, hardening_params,
+             model_type='linear'):
+    """
+    :param deps: Change in strain
+    :param old_sig: Old stress
+    :param old_p: Old plastic strain
+    :param sig_0_local: Initial stress for hardening
+    :param hardening_params: Dictionary containing hardening parameters for the models
+    :param mu_local: Shear modulus
+    :param lmbda_local_DG: Lambda for the DG method
+    :param mu_local_DG: Mu for the DG method
+    :param model_type: Type of hardening model ('linear', 'ludwik', 'swift')
+    :return: Updated stress and related values
+    """
 
-# https://www.dynasupport.com/tutorial/computational-plasticity/radial-return
-# https://www.dynasupport.com/tutorial/computational-plasticity/generalizing-the-yield-function
-# https://www.dynasupport.com/tutorial/computational-plasticity/the-consistent-tangent-matrix
-def proj_sig(deps, old_sig, old_p, sig_0_local, C_linear_h_local, mu_local, lmbda_local_DG, mu_local_DG):
-    # update stress from change in strain (deps)
+    # Update stress from change in strain (deps)
     sig_n = as_3D_tensor(old_sig)
     sig_elas = sig_n + compute_stress(deps, lmbda_local_DG, mu_local_DG)
 
-    # trial stress
+    # Trial stress
     s = fe.dev(sig_elas)
-    # von-Mises stress or equivalent trial stress
+    # Von-Mises stress or equivalent trial stress
     sig_eq = fe.sqrt(3 / 2. * fe.inner(s, s))
 
-    # prevent division by zero
-    # if np.mean(local_project(old_p, P0).vector()[:]) < 1E-12:
-    #    old_p += 1E-12
+    # Calculate flow stress and its derivative based on hardening law
+    if model_type == 'linear':
+        k = sig_0_local + hardening_params['C_linear'] * old_p
+        dk_dp = hardening_params['C_linear']
 
-    # https://doc.comsol.com/5.5/doc/com.comsol.help.sme/sme_ug_theory.06.29.html#3554826
-    # Calculate flow stress based on hardening law
-    # linear hardening
-    # k_linear = C_sig0 + C_linear_isotropic_hardening * old_p
-    k_linear = sig_0_local + C_linear_h_local * old_p
+    elif model_type == 'ludwik':
+        C_nlin = hardening_params['C_nlin_ludwik']
+        C_exp = hardening_params['C_exponent_ludwik']
+        k = sig_0_local + C_nlin * pow(old_p + 1E-12, C_exp)
+        dk_dp = C_nlin * C_exp * pow(old_p + 1E-12, C_exp - 1)
 
-    #     # Ludwik hardening
-    #     k_ludwik = C_sig0 + C_nlin_ludwik * pow(old_p + 1E-12, C_exponent_ludwik)
+    elif model_type == 'swift':
+        C_eps0 = hardening_params['C_swift_eps0']
+        C_exp = hardening_params['C_exponent_swift']
+        k = sig_0_local * pow(1 + old_p / C_eps0, C_exp)
+        dk_dp = sig_0_local * C_exp * pow(1 + old_p / C_eps0, C_exp - 1) / C_eps0
 
-    #     # swift hardening
-    #     k_swift = C_sig0 * pow(1 + old_p/C_swift_eps0, C_exponent_swift)
+    else:
+        raise ValueError(f"Unsupported hardening model: {model_type}")
 
-    # yield surface/ if trial stress <= yield_stress + H * old_p: elastic
-    f_elas = sig_eq - k_linear
-    # f_elas = sig_eq - k_ludwik
-    # f_elas = sig_eq - k_swift
+    # Yield surface
+    f_elas = sig_eq - k
 
-    # change of plastic strain =0 when f_elas < 0
-    # in elastic case = 0
-    dp = ppos(f_elas) / (3 * mu_local + C_linear_h_local)
-    # dp_old = ppos(f_elas) / (3 * C_mu + C_linear_isotropic_hardening)
-    # dp = ppos(f_elas) / (3 * C_mu)
-    # print("dp", np.mean(local_project(dp, P0).vector()[:]), np.max(local_project(dp, P0).vector()[:]))
-    # print("dp_old", np.mean(local_project(dp_old, P0).vector()[:]), np.max(local_project(dp_old, P0).vector()[:]))
+    # Change of plastic strain
+    dp = ppos(f_elas) / (3 * mu_local + dk_dp)
 
-    # normal vector on yield surface?
-    # in elastic case = 0
+    # Normal vector on yield surface?
+    # In elastic case = 0
     n_elas = s * ppos(f_elas) / (sig_eq * f_elas)
 
-    # radial return mapping?
-    # in elastic case = 0
+    # Radial return mapping?
+    # In elastic case = 0
     beta = 3 * mu_local * dp / sig_eq
 
-    # updated cauchy stress tensor
-    # in elastic case = sig_elas
+    # Updated Cauchy stress tensor
+    # In elastic case = sig_elas
     new_sig = sig_elas - beta * s
 
     # Hydrostatic stress
@@ -288,11 +295,10 @@ class LinearElastoPlasticIntegrator:
         self.model.total_displacement.assign(self.model.total_displacement + self.model.current_displacement_increment)
 
         self.model.cum_plstic_strain.assign(
-        self.model.cum_plstic_strain + local_project(plastic_strain_update, self.model.scalar_quad_space,
-                                                     self.model.dxm))
+            self.model.cum_plstic_strain + local_project(plastic_strain_update, self.model.scalar_quad_space,
+                                                         self.model.dxm))
         self.model.old_stress.assign(self.model.stress)
         self.model.sig_hyd_avg.assign(fe.project(self.model.hydrostatic_stress, self.model.P0))
-
 
     def _run_newton_raphson(self, system_matrix, residual):
         """
@@ -313,20 +319,27 @@ class LinearElastoPlasticIntegrator:
             fe.solve(system_matrix, self.model.displacement_correction.vector(), residual, "mumps")
 
             # Update solution
-            self.model.current_displacement_increment.assign(self.model.current_displacement_increment + self.model.displacement_correction)
+            self.model.current_displacement_increment.assign(
+                self.model.current_displacement_increment + self.model.displacement_correction)
             strain_change = compute_strain_tensor(self.model.current_displacement_increment)
+
+            # Parameters for the hardening model
+            hardening_params = {
+                'C_linear': self.model.local_linear_hardening
+            }
 
             # Project the new stress
             stress_update, elastic_strain_update, back_stress_update, pressure_change, hydrostatic_stress_update = proj_sig(
                 strain_change, self.model.old_stress, self.model.cum_plstic_strain, self.model.local_initial_stress,
-                self.model.local_linear_hardening,
-                self.model.local_shear_modulus, self.model.lmbda_local_DG, self.model.mu_local_DG)
+                self.model.local_shear_modulus, self.model.lmbda_local_DG, self.model.mu_local_DG, hardening_params,
+                model_type='linear')
 
             # Update field values
             local_project(stress_update, self.model.tensor_quad_space, self.model.dxm, self.model.stress)
             local_project(elastic_strain_update, self.model.tensor_quad_space, self.model.dxm, self.model.n_elas)
             local_project(back_stress_update, self.model.scalar_quad_space, self.model.dxm, self.model.beta)
-            self.model.hydrostatic_stress.assign(local_project(hydrostatic_stress_update, self.model.scalar_quad_space, self.model.dxm))
+            self.model.hydrostatic_stress.assign(
+                local_project(hydrostatic_stress_update, self.model.scalar_quad_space, self.model.dxm))
 
             # Assemble system
             system_matrix, residual = fe.assemble_system(self.model.newton_lhs, self.model.newton_rhs,
