@@ -277,47 +277,59 @@ def compute_hardening(plastic_strain: float, initial_stress: float, hardening_pa
 
 def proj_sig(deps, old_sig,  mu_local, lmbda_local_DG, mu_local_DG, k, dk_dp):
     """
-    :param deps: Change in strain
-    :param old_sig: Old stress
-    :param mu_local: Shear modulus
-    :param lmbda_local_DG: Lambda for the DG method
-    :param mu_local_DG: Mu for the DG method
-    :return: Updated stress and related values
+    Return-mapping algorithm for plasticity. The function projects the trial stress onto the yield surface,
+    and computes the plastic strain and stress updates accordingly.
+
+    Parameters:
+    - deps (list or tensor): Incremental strain tensor.
+    - old_sig (list or tensor): Stress tensor from the previous iteration or time step.
+    - mu_local (float): Shear modulus of the material.
+    - lmbda_local_DG (float): Lambda parameter related to the DG (Discontinuous Galerkin) method.
+    - mu_local_DG (float): Mu parameter related to the DG method.
+    - k (float): Yield stress or hardening parameter.
+    - dk_dp (float): Derivative of the yield stress or hardening parameter.
+
+    Returns:
+    - tuple: Contains updated stress tensor, normal to the yield surface, beta (related to radial return),
+      change in plastic strain, and hydrostatic stress.
     """
 
-    # Update stress from change in strain (deps)
+    # Convert the old stress tensor to a 3x3 tensor format.
     sig_n = as_3D_tensor(old_sig)
+
+    # Elastic predictor step: Compute trial stress based on the elastic behavior.
     sig_elas = sig_n + compute_stress(deps, lmbda_local_DG, mu_local_DG)
 
-    # Trial stress
+    # Compute deviatoric part of the trial stress.
     s = fe.dev(sig_elas)
-    # Von-Mises stress or equivalent trial stress
+
+    # Compute the Von-Mises equivalent trial stress.
     sig_eq = fe.sqrt(3 / 2. * fe.inner(s, s))
 
-    # Yield surface
+    # Evaluate the yield function to determine if yielding has occurred.
     f_elas = sig_eq - k
 
-    # Change of plastic strain
+    # If yielding has occurred, compute the change in plastic strain.
+    # If not, dp remains zero.
     dp = ppos(f_elas) / (3 * mu_local + dk_dp)
 
-    # Normal vector on yield surface?
-    # In elastic case = 0
+    # Compute the normal vector to the yield surface.
     n_elas = s * ppos(f_elas) / (sig_eq * f_elas)
 
-    # Radial return mapping?
-    # In elastic case = 0
+    # Compute the parameter for radial return. It determines the amount by which the trial stress needs
+    # to be adjusted to lie on the yield surface.
     beta = 3 * mu_local * dp / sig_eq
 
-    # Updated Cauchy stress tensor
-    # In elastic case = sig_elas
+    # Adjust the trial stress using radial return to obtain the admissible stress.
     new_sig = sig_elas - beta * s
 
-    # Hydrostatic stress
+    # Compute the hydrostatic or volumetric stress.
     sig_hyd = (1. / 3) * fe.tr(new_sig)
 
     return fe.as_vector([new_sig[0, 0], new_sig[1, 1], new_sig[2, 2], new_sig[0, 1]]), \
-        fe.as_vector([n_elas[0, 0], n_elas[1, 1], n_elas[2, 2], n_elas[0, 1]]), \
-        beta, dp, sig_hyd
+           fe.as_vector([n_elas[0, 0], n_elas[1, 1], n_elas[2, 2], n_elas[0, 1]]), \
+           beta, dp, sig_hyd
+
 
 
 class LinearElastoPlasticIntegrator:
