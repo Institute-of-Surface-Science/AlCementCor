@@ -228,11 +228,21 @@ def compute_hardening(plastic_strain: float, initial_stress: float, hardening_pa
 
     # Linear hardening model
     if model_type == HardeningModel.LINEAR:
+        # The linear hardening model represents a linear relationship between stress and plastic strain.
+        # Applicable to materials where the increase in flow stress is proportional to plastic deformation.
+        # Mathematical representation:
+        # sigma = sigma_0 + H * epsilon_p
+        # where H is the hardening modulus.
         flow_stress = initial_stress + hardening_params.get('linear_coefficient', 0) * plastic_strain
         stress_derivative = hardening_params.get('linear_coefficient', 0)
 
     # Ludwik hardening model
     elif model_type == HardeningModel.LUDWIK:
+        # The Ludwik model is suitable for metals exhibiting power-law strain hardening.
+        # It is widely used for modeling cold work metal plasticity.
+        # Mathematical representation:
+        # sigma = sigma_0 + K * epsilon_p^n
+        # where K and n are material constants.
         nonlinear_coefficient = hardening_params.get('ludwik_nonlinear_coefficient', 0)
         exponent = hardening_params.get('ludwik_exponent', 0)
 
@@ -244,6 +254,11 @@ def compute_hardening(plastic_strain: float, initial_stress: float, hardening_pa
 
     # Swift hardening model
     elif model_type == HardeningModel.SWIFT:
+        # The Swift hardening model is a power-law based model but with the inclusion of a normalization term.
+        # It's applicable to metals that experience significant hardening during deformation.
+        # Mathematical representation:
+        # sigma = sigma_0 * (1 + epsilon_p / epsilon_0)^n
+        # where epsilon_0 is a reference strain and n is a material constant.
         epsilon_0 = hardening_params.get('swift_epsilon_0', 0)
         exponent = hardening_params.get('swift_exponent', 0)
 
