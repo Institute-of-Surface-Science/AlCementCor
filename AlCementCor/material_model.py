@@ -275,60 +275,58 @@ def compute_hardening(plastic_strain: float, initial_stress: float, hardening_pa
     return flow_stress, stress_derivative
 
 
-def proj_sig(deps, old_sig,  mu_local, lmbda_local_DG, mu_local_DG, k, dk_dp):
+def project_stress(incremental_strain, previous_stress, shear_modulus, lambda_DG, mu_DG, yield_stress, hardening_derivative):
     """
-    Return-mapping algorithm for plasticity. The function projects the trial stress onto the yield surface,
-    and computes the plastic strain and stress updates accordingly.
+    Return-mapping algorithm for plasticity. Projects the trial stress onto the yield surface and computes the plastic strain and stress updates.
 
     Parameters:
-    - deps (list or tensor): Incremental strain tensor.
-    - old_sig (list or tensor): Stress tensor from the previous iteration or time step.
-    - mu_local (float): Shear modulus of the material.
-    - lmbda_local_DG (float): Lambda parameter related to the DG (Discontinuous Galerkin) method.
-    - mu_local_DG (float): Mu parameter related to the DG method.
-    - k (float): Yield stress or hardening parameter.
-    - dk_dp (float): Derivative of the yield stress or hardening parameter.
+    - incremental_strain (list or tensor): Incremental strain tensor.
+    - previous_stress (list or tensor): Stress tensor from the previous iteration or time step.
+    - shear_modulus (float): Shear modulus of the material.
+    - lambda_DG (float): Lambda parameter for the Discontinuous Galerkin (DG) method.
+    - mu_DG (float): Mu parameter for the DG method.
+    - yield_stress (float): Current value of the yield stress or hardening parameter.
+    - hardening_derivative (float): Derivative of the yield stress with respect to plastic strain.
 
     Returns:
-    - tuple: Contains updated stress tensor, normal to the yield surface, beta (related to radial return),
-      change in plastic strain, and hydrostatic stress.
+    - tuple: Contains updated stress tensor, normal to the yield surface, radial_return_factor, change in plastic strain, and volumetric stress.
     """
 
-    # Convert the old stress tensor to a 3x3 tensor format.
-    sig_n = as_3D_tensor(old_sig)
+    # Convert the previous stress tensor to a 3x3 tensor format.
+    stress_3D = as_3D_tensor(previous_stress)
 
     # Elastic predictor step: Compute trial stress based on the elastic behavior.
-    sig_elas = sig_n + compute_stress(deps, lmbda_local_DG, mu_local_DG)
+    trial_stress = stress_3D + compute_stress(incremental_strain, lambda_DG, mu_DG)
 
-    # Compute deviatoric part of the trial stress.
-    s = fe.dev(sig_elas)
+    # Compute the deviatoric part of the trial stress.
+    deviatoric_stress = fe.dev(trial_stress)
 
-    # Compute the Von-Mises equivalent trial stress.
-    sig_eq = fe.sqrt(3 / 2. * fe.inner(s, s))
+    # Calculate the Von-Mises equivalent trial stress.
+    equivalent_stress = fe.sqrt(3 / 2. * fe.inner(deviatoric_stress, deviatoric_stress))
 
-    # Evaluate the yield function to determine if yielding has occurred.
-    f_elas = sig_eq - k
+    # Evaluate the distance of the trial stress from the yield surface.
+    yield_function_value = equivalent_stress - yield_stress
 
-    # If yielding has occurred, compute the change in plastic strain.
-    # If not, dp remains zero.
-    dp = ppos(f_elas) / (3 * mu_local + dk_dp)
+    # Determine the change in plastic strain.
+    plastic_strain_increment = ppos(yield_function_value) / (3 * shear_modulus + hardening_derivative)
 
-    # Compute the normal vector to the yield surface.
-    n_elas = s * ppos(f_elas) / (sig_eq * f_elas)
+    # Calculate the normal vector to the yield surface.
+    yield_normal = deviatoric_stress * ppos(yield_function_value) / (equivalent_stress * yield_function_value)
 
-    # Compute the parameter for radial return. It determines the amount by which the trial stress needs
-    # to be adjusted to lie on the yield surface.
-    beta = 3 * mu_local * dp / sig_eq
+    # Calculate the factor for radial return, determining the adjustment required for the trial stress.
+    radial_return_factor = 3 * shear_modulus * plastic_strain_increment / equivalent_stress
 
-    # Adjust the trial stress using radial return to obtain the admissible stress.
-    new_sig = sig_elas - beta * s
+    # Adjust the trial stress to lie on the yield surface.
+    corrected_stress = trial_stress - radial_return_factor * deviatoric_stress
 
-    # Compute the hydrostatic or volumetric stress.
-    sig_hyd = (1. / 3) * fe.tr(new_sig)
+    # Compute the hydrostatic or volumetric part of the corrected stress.
+    volumetric_stress = (1. / 3) * fe.tr(corrected_stress)
 
-    return fe.as_vector([new_sig[0, 0], new_sig[1, 1], new_sig[2, 2], new_sig[0, 1]]), \
-           fe.as_vector([n_elas[0, 0], n_elas[1, 1], n_elas[2, 2], n_elas[0, 1]]), \
-           beta, dp, sig_hyd
+    return fe.as_vector([corrected_stress[0, 0], corrected_stress[1, 1], corrected_stress[2, 2], corrected_stress[0, 1]]), \
+           fe.as_vector([yield_normal[0, 0], yield_normal[1, 1], yield_normal[2, 2], yield_normal[0, 1]]), \
+           radial_return_factor, plastic_strain_increment, volumetric_stress
+
+
 
 
 
