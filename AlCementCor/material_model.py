@@ -608,8 +608,13 @@ class LinearElastoPlasticModel:
 
     @property
     def model_config(self) -> LinearElastoPlasticConfig:
-        """Provide access to simulation configuration."""
+        """Provide access to model configuration."""
         return self._config
+
+    @property
+    def simulation_config(self) -> SimulationConfig:
+        """Provide access to simulation configuration."""
+        return self._config.simulation_config
 
     @property
     def integration_time_limit(self):

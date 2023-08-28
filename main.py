@@ -89,9 +89,8 @@ def create_output_file(filename):
 def main() -> None:
     args = parse_command_line_args()
 
-    #simulation_config = LinearElastoPlasticConfig(args.config)
     model = LinearElastoPlasticModel(args.config)
-    simulation_config = model.model_config.simulation_config
+    simulation_config = model.simulation_config
     integrator = LinearElastoPlasticIntegrator(model)
 
     summarize_and_print_config(simulation_config, materials=[model.substrate_properties, model.layer_properties])
