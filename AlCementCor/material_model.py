@@ -1,4 +1,5 @@
 from functools import partial
+from typing import Any, Tuple, List
 
 import ufl
 import fenics as fe
@@ -373,6 +374,9 @@ class LinearElastoPlasticIntegrator:
         for condition in self.model.boundary.conditions:
             condition.update_time(self.time_step)
 
+        self.model.stress_bnd.update_stress_value([0.0, self.time*0.1], self.time)
+
+
     def _update_model_values(self, plastic_strain_update: float):
         """Update model's internal values after a successful Newton-Raphson step."""
         self.model.total_displacement.assign(self.model.total_displacement + self.model.current_displacement_increment)
@@ -404,8 +408,7 @@ class LinearElastoPlasticIntegrator:
             fe.solve(system_matrix, m.displacement_correction.vector(), residual, "mumps")
 
             # Update solution
-            m.current_displacement_increment.assign(
-                m.current_displacement_increment + m.displacement_correction)
+            m.current_displacement_increment.assign(m.current_displacement_increment + m.displacement_correction)
             strain_change = compute_strain_tensor(m.current_displacement_increment)
 
             # Parameters for the hardening model
@@ -494,6 +497,8 @@ class LinearElastoPlasticModel:
 
         # Set up boundary conditions
         self.boundary = DisplacementElastoPlasticBnd(self._config, self.vector_space)
+        self.stress_bnd = StressElastoPlasticBnd(self._config, self.vector_space)
+        self._setup_newton_equations()
 
         # Define boundary and values
         partioning = [self._config.width]  # Assuming the width is the "boundary" between substrate and layer
@@ -523,8 +528,7 @@ class LinearElastoPlasticModel:
         self._setup_stress_functions()
         self._setup_other_functions()
         self._setup_local_properties()
-        self._stress_bnd = StressElastoPlasticBnd(self._config, self.vector_space)
-        self._setup_newton_equations()
+
 
     def _setup_function_spaces(self) -> None:
         """Set up the function spaces required for the simulation."""
@@ -607,7 +611,7 @@ class LinearElastoPlasticModel:
                                                              self.local_linear_hardening_DG, self.beta,
                                                              self.lmbda_local_DG)) * self.dxm
 
-        stress_rhs = self._stress_bnd.get_stress_rhs( self.u_)  # Assuming self.boundary_conditions is an instance of LinearElastoPlasticBnd
+        stress_rhs = self.stress_bnd.get_stress_rhs( self.u_)  # Assuming self.boundary_conditions is an instance of LinearElastoPlasticBnd
         self.newton_rhs = (-fe.inner(compute_strain_tensor(self.u_), as_3D_tensor(self.stress)) * self.dxm
                            + stress_rhs)
 
@@ -644,37 +648,38 @@ class LinearElastoPlasticModel:
 
 
 class BaseElastoPlasticBnd:
-    def __init__(self, simulation_config, V):
+    def __init__(self, simulation_config: "LinearElastoPlasticConfig", V: Any) -> None:
         self.simulation_config = simulation_config
         self.mesh = simulation_config.mesh
         self.V = V
         self.l_x = simulation_config.l_x
         self.l_y = simulation_config.l_y
 
-    def make_top_boundary(self):
-        l_y = self.l_y  # Storing value to be used in closure
+    def make_top_boundary(self) -> Any:
+        """Defines the top boundary condition."""
+        l_y = self.l_y
 
-        def is_top_boundary(x, on_boundary):
+        def is_top_boundary(x: Tuple[float, float], on_boundary: bool) -> bool:
             return on_boundary and fe.near(x[1], l_y)
 
         return is_top_boundary
 
-    def make_bottom_boundary(self):
-        def is_bottom_boundary(x, on_boundary):
+    def make_bottom_boundary(self)-> Any:
+        def is_bottom_boundary(x: Tuple[float, float], on_boundary: bool) -> bool:
             return on_boundary and fe.near(x[1], 0.0)
 
         return is_bottom_boundary
 
-    def make_left_boundary(self):
-        def is_left_boundary(x, on_boundary):
+    def make_left_boundary(self)-> Any:
+        def is_left_boundary(x: Tuple[float, float], on_boundary: bool) -> bool:
             return on_boundary and fe.near(x[0], 0.0)
 
         return is_left_boundary
 
-    def make_right_boundary(self):
+    def make_right_boundary(self)-> Any:
         l_x = self.l_x  # Storing value to be used in closure
 
-        def is_right_boundary(x, on_boundary):
+        def is_right_boundary(x: Tuple[float, float], on_boundary: bool) -> bool:
             return on_boundary and fe.near(x[0], l_x)
 
         return is_right_boundary
@@ -682,10 +687,11 @@ class BaseElastoPlasticBnd:
 
 class DisplacementElastoPlasticBnd(BaseElastoPlasticBnd):
     def __init__(self, simulation_config, V):
+        """Initializes the displacement elasto-plastic boundary conditions."""
         super().__init__(simulation_config, V)
         self.bc, self.bc_iter, self.conditions = self.setup_displacement_bnd()
 
-    def setup_displacement_bnd(self):
+    def setup_displacement_bnd(self) -> Tuple[List[Any], List[Any], List[Any]]:
         # Define the boundary conditions
         # bnd_length = l_x
         # displacement_func = LinearDisplacementX((-C_strain_rate, 0.0), bnd_length)
@@ -726,16 +732,15 @@ class DisplacementElastoPlasticBnd(BaseElastoPlasticBnd):
         return bc, bc_iter, conditions
 
 class StressElastoPlasticBnd(BaseElastoPlasticBnd):
-    def __init__(self, simulation_config, V):
+    def __init__(self, simulation_config, V, initial_stress_value=None):
         super().__init__(simulation_config, V)
+        if initial_stress_value is None:
+            initial_stress_value = [0.0, 0.1]
         self.boundary_markers = None
-        self.stress_value = fe.Constant([0.0, 5.0])
+        self.stress_value = fe.Constant(initial_stress_value)
         self.setup_stress_bnd()
 
-    def setup_stress_bnd(self):
-        def is_bottom_boundary(x, on_boundary):
-            return on_boundary and fe.near(x[1], 0.0)
-
+    def setup_stress_bnd(self)-> None:
         self.boundary_markers = fe.MeshFunction('size_t', self.mesh, self.mesh.topology().dim() - 1)
         self.boundary_markers.set_all(0)
 
@@ -745,6 +750,14 @@ class StressElastoPlasticBnd(BaseElastoPlasticBnd):
 
         #boundary_subdomain = fe.CompiledSubDomain("near(x[1], 0.0)")
         bottom_boundary.mark(self.boundary_markers, 1)
+
+    def update_stress_value(self, new_stress_value, time) -> None:
+        """Updates the stress value.
+
+        Args:
+            new_stress_value (list): New stress values to be set.
+        """
+        self.stress_value.assign(fe.Constant(new_stress_value))
 
     def get_stress_rhs(self, test_function):
         ds = fe.Measure('ds', domain=self.mesh, subdomain_data=self.boundary_markers)
