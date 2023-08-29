@@ -1,9 +1,12 @@
+from functools import partial
+
 import ufl
 import fenics as fe
 import numpy as np
+import pybind11
 
 from enum import Enum
-from AlCementCor.bnd import SquareStrainRate, FunctionDisplacementBoundaryCondition
+from AlCementCor.bnd import SquareStrainRate, FunctionDisplacementBoundaryCondition, NoDisplacementBoundaryCondition
 from AlCementCor.config import SimulationConfig
 from AlCementCor.fenics_helpers import as_3D_tensor, local_project, assign_values_based_on_boundaries
 from AlCementCor.material_model_config import LinearElastoPlasticConfig
@@ -364,6 +367,9 @@ class LinearElastoPlasticIntegrator:
 
     def _update_boundary_conditions(self):
         """Update boundary conditions based on the current time step."""
+        if self.model.boundary.conditions is None:
+            return
+
         for condition in self.model.boundary.conditions:
             condition.update_time(self.time_step)
 
@@ -487,7 +493,7 @@ class LinearElastoPlasticModel:
         self._setup()
 
         # Set up boundary conditions
-        self.boundary = LinearElastoPlasticBnd(self._config, self.vector_space)
+        self.boundary = DisplacementElastoPlasticBnd(self._config, self.vector_space)
 
         # Define boundary and values
         partioning = [self._config.width]  # Assuming the width is the "boundary" between substrate and layer
@@ -517,6 +523,7 @@ class LinearElastoPlasticModel:
         self._setup_stress_functions()
         self._setup_other_functions()
         self._setup_local_properties()
+        self._stress_bnd = StressElastoPlasticBnd(self._config, self.vector_space)
         self._setup_newton_equations()
 
     def _setup_function_spaces(self) -> None:
@@ -599,7 +606,10 @@ class LinearElastoPlasticModel:
                                                              self.mu_local_DG,
                                                              self.local_linear_hardening_DG, self.beta,
                                                              self.lmbda_local_DG)) * self.dxm
-        self.newton_rhs = -fe.inner(compute_strain_tensor(self.u_), as_3D_tensor(self.stress)) * self.dxm
+
+        stress_rhs = self._stress_bnd.get_stress_rhs( self.u_)  # Assuming self.boundary_conditions is an instance of LinearElastoPlasticBnd
+        self.newton_rhs = (-fe.inner(compute_strain_tensor(self.u_), as_3D_tensor(self.stress)) * self.dxm
+                           + stress_rhs)
 
     @property
     def mesh(self) -> 'MeshType':
@@ -633,29 +643,49 @@ class LinearElastoPlasticModel:
         return self.model_config.layer_properties
 
 
-class LinearElastoPlasticBnd:
+class BaseElastoPlasticBnd:
     def __init__(self, simulation_config, V):
         self.simulation_config = simulation_config
         self.mesh = simulation_config.mesh
         self.V = V
         self.l_x = simulation_config.l_x
         self.l_y = simulation_config.l_y
-        self.bc, self.bc_iter, self.conditions = self.setup_displacement_bnd()
 
-    def setup_displacement_bnd(self):
-        # Define boundary location conditions
+    def make_top_boundary(self):
+        l_y = self.l_y  # Storing value to be used in closure
+
+        def is_top_boundary(x, on_boundary):
+            return on_boundary and fe.near(x[1], l_y)
+
+        return is_top_boundary
+
+    def make_bottom_boundary(self):
         def is_bottom_boundary(x, on_boundary):
             return on_boundary and fe.near(x[1], 0.0)
 
-        def is_top_boundary(x, on_boundary):
-            return on_boundary and fe.near(x[1], self.l_y)
+        return is_bottom_boundary
 
+    def make_left_boundary(self):
         def is_left_boundary(x, on_boundary):
             return on_boundary and fe.near(x[0], 0.0)
 
-        def is_right_boundary(x, on_boundary):
-            return on_boundary and fe.near(x[0], self.l_x)
+        return is_left_boundary
 
+    def make_right_boundary(self):
+        l_x = self.l_x  # Storing value to be used in closure
+
+        def is_right_boundary(x, on_boundary):
+            return on_boundary and fe.near(x[0], l_x)
+
+        return is_right_boundary
+
+
+class DisplacementElastoPlasticBnd(BaseElastoPlasticBnd):
+    def __init__(self, simulation_config, V):
+        super().__init__(simulation_config, V)
+        self.bc, self.bc_iter, self.conditions = self.setup_displacement_bnd()
+
+    def setup_displacement_bnd(self):
         # Define the boundary conditions
         # bnd_length = l_x
         # displacement_func = LinearDisplacementX((-C_strain_rate, 0.0), bnd_length)
@@ -672,20 +702,20 @@ class LinearElastoPlasticBnd:
         # displacement_func = LinearDisplacementX(-C_strain_rate, bnd_length)
         # displacement_func = ConstantStrainRate((-C_strain_rate, 0.0))
         # top_condition = FunctionDisplacementBoundaryCondition(V, is_top_boundary, displacement_func)
-        # top_condition = NoDisplacementBoundaryCondition(V, is_top_boundary)
+        top_condition = NoDisplacementBoundaryCondition(self.V, self.make_top_boundary())
 
         # bnd_length = l_y
         # displacement_func = SinglePointDisplacement((0.0, 6.0), (-C_strain_rate, 0.0))
         # displacement_func = ConstantStrainRate((-C_strain_rate, 0.0))
-        displacement_func = SquareStrainRate((-self.simulation_config.strain_rate, 0.0), 0.0, self.l_y)
-        left_condition = FunctionDisplacementBoundaryCondition(self.V, is_left_boundary, displacement_func)
+        # displacement_func = SquareStrainRate((-self.simulation_config.strain_rate, 0.0), 0.0, self.l_y)
+        # left_condition = FunctionDisplacementBoundaryCondition(self.V, is_left_boundary, displacement_func)
 
         # displacement_func = SinglePointDisplacement((4.2, 6.0), (-C_strain_rate, 0.0))
         # displacement_func = ConstantStrainRate((-C_strain_rate, 0.0))
         # right_condition = FunctionDisplacementBoundaryCondition(V, is_right_boundary, displacement_func)
 
         # Create the conditions list
-        conditions = [left_condition]
+        conditions = [top_condition]
 
         # Generate the Dirichlet boundary conditions
         bc = [condition.get_condition() for condition in conditions]
@@ -694,3 +724,28 @@ class LinearElastoPlasticBnd:
         bc_iter = [condition.get_homogenized_condition() for condition in conditions]
 
         return bc, bc_iter, conditions
+
+class StressElastoPlasticBnd(BaseElastoPlasticBnd):
+    def __init__(self, simulation_config, V):
+        super().__init__(simulation_config, V)
+        self.boundary_markers = None
+        self.stress_value = fe.Constant([0.0, 5.0])
+        self.setup_stress_bnd()
+
+    def setup_stress_bnd(self):
+        def is_bottom_boundary(x, on_boundary):
+            return on_boundary and fe.near(x[1], 0.0)
+
+        self.boundary_markers = fe.MeshFunction('size_t', self.mesh, self.mesh.topology().dim() - 1)
+        self.boundary_markers.set_all(0)
+
+        # For more complex boundary conditions, consider using 'fe.AutoSubDomain' with Python functions.
+        #top_boundary = fe.AutoSubDomain(lambda x, on_boundary: is_top_boundary(x, on_boundary, self.l_y))
+        bottom_boundary = fe.AutoSubDomain(self.make_bottom_boundary())
+
+        #boundary_subdomain = fe.CompiledSubDomain("near(x[1], 0.0)")
+        bottom_boundary.mark(self.boundary_markers, 1)
+
+    def get_stress_rhs(self, test_function):
+        ds = fe.Measure('ds', domain=self.mesh, subdomain_data=self.boundary_markers)
+        return fe.dot(test_function, self.stress_value) * ds(1)
