@@ -5,6 +5,7 @@ from ffc.quadrature.deprecation import QuadratureRepresentationDeprecationWarnin
 
 from AlCementCor.info import *
 from AlCementCor.material_model import *
+from AlCementCor.postproc import *
 
 fe.parameters["form_compiler"]["representation"] = 'quadrature'
 warnings.simplefilter("once", QuadratureRepresentationDeprecationWarning)
