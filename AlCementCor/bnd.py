@@ -3,6 +3,8 @@ import numpy as np
 from abc import ABC, abstractmethod
 from typing import Any, Tuple, List
 
+from AlCementCor.material_model_config import LinearElastoPlasticConfig
+
 
 # Define base class for boundary conditions
 class BoundaryCondition(ABC):
@@ -254,6 +256,10 @@ class BaseElastoPlasticBnd:
 
         return is_right_boundary
 
+    @abstractmethod
+    def update_bnd(self, time_step, time):
+        pass
+
 
 class DisplacementElastoPlasticBnd(BaseElastoPlasticBnd):
     def __init__(self, simulation_config, V):
@@ -301,6 +307,13 @@ class DisplacementElastoPlasticBnd(BaseElastoPlasticBnd):
 
         return bc, bc_iter, conditions
 
+    def update_bnd(self, time_step, time):
+        if self.conditions is None:
+            return
+
+        for condition in self.conditions:
+            condition.update_time(time_step)
+
 
 class StressElastoPlasticBnd(BaseElastoPlasticBnd):
     def __init__(self, simulation_config, V, initial_stress_value=None):
@@ -333,3 +346,7 @@ class StressElastoPlasticBnd(BaseElastoPlasticBnd):
     def get_stress_rhs(self, test_function):
         ds = fe.Measure('ds', domain=self.mesh, subdomain_data=self.boundary_markers)
         return fe.dot(test_function, self.stress_expression) * ds(1)
+
+    def update_bnd(self, time_step, time):
+        self.update_stress_value([0.0, time * 0.1], time)
+

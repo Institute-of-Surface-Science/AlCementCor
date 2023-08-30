@@ -607,12 +607,8 @@ class LinearElastoPlasticModel:
                            + stress_rhs)
 
     def update_bnd(self, time_step, time):
-        if self.boundary_deformation.conditions is None:
-            return
-
-        for condition in self.boundary_deformation.conditions:
-            condition.update_time(time_step)
-        self.boundary_stress.update_stress_value([0.0, time * 0.1], time)
+        self.boundary_deformation.update_bnd(time_step, time)
+        self.boundary_stress.update_bnd(time_step, time)
 
     @property
     def mesh(self) -> 'MeshType':
