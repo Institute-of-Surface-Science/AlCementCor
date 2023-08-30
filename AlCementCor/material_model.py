@@ -1,7 +1,6 @@
 import ufl
 import fenics as fe
 import numpy as np
-from functools import partial
 from typing import Any, Tuple, List
 from enum import Enum
 from AlCementCor.bnd import DisplacementElastoPlasticBnd, StressElastoPlasticBnd
