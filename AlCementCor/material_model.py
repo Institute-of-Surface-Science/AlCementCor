@@ -355,7 +355,7 @@ class LinearElastoPlasticIntegrator:
         self._update_boundary_conditions()
 
         system_matrix, residual = fe.assemble_system(self.model.newton_lhs, self.model.newton_rhs,
-                                                     self.model.boundary.bc)
+                                                     self.model.boundary_deformation.bc)
         newton_res_norm, plastic_strain_update = self._run_newton_raphson(system_matrix, residual)
 
         check_divergence(newton_res_norm)
@@ -365,13 +365,8 @@ class LinearElastoPlasticIntegrator:
 
     def _update_boundary_conditions(self):
         """Update boundary conditions based on the current time step."""
-        if self.model.boundary.conditions is None:
-            return
+        self.model.update_bnd(self.time_step, self.time)
 
-        for condition in self.model.boundary.conditions:
-            condition.update_time(self.time_step)
-
-        self.model.stress_bnd.update_stress_value([0.0, self.time * 0.1], self.time)
 
     def _update_model_values(self, plastic_strain_update: float):
         """Update model's internal values after a successful Newton-Raphson step."""
@@ -425,7 +420,7 @@ class LinearElastoPlasticIntegrator:
             m.hydrostatic_stress.assign(local_project(hydrostatic_stress_update, m.scalar_quad_space, m.dxm))
 
             # Assemble system
-            system_matrix, residual = fe.assemble_system(m.newton_lhs, m.newton_rhs, m.boundary.bc_iter)
+            system_matrix, residual = fe.assemble_system(m.newton_lhs, m.newton_rhs, m.boundary_deformation.bc_iter)
 
             # Update residual norm
             current_residual_norm = residual.norm("l2")
@@ -492,8 +487,8 @@ class LinearElastoPlasticModel:
         self._setup()
 
         # Set up boundary conditions
-        self.boundary = DisplacementElastoPlasticBnd(self._config, self.vector_space)
-        self.stress_bnd = StressElastoPlasticBnd(self._config, self.vector_space)
+        self.boundary_deformation = DisplacementElastoPlasticBnd(self._config, self.vector_space)
+        self.boundary_stress = StressElastoPlasticBnd(self._config, self.vector_space)
         self._setup_newton_equations()
 
         # Define boundary and values
@@ -606,10 +601,18 @@ class LinearElastoPlasticModel:
                                                              self.local_linear_hardening_DG, self.beta,
                                                              self.lmbda_local_DG)) * self.dxm
 
-        stress_rhs = self.stress_bnd.get_stress_rhs(
+        stress_rhs = self.boundary_stress.get_stress_rhs(
             self.u_)  # Assuming self.boundary_conditions is an instance of LinearElastoPlasticBnd
         self.newton_rhs = (-fe.inner(compute_strain_tensor(self.u_), as_3D_tensor(self.stress)) * self.dxm
                            + stress_rhs)
+
+    def update_bnd(self, time_step, time):
+        if self.boundary_deformation.conditions is None:
+            return
+
+        for condition in self.boundary_deformation.conditions:
+            condition.update_time(time_step)
+        self.boundary_stress.update_stress_value([0.0, time * 0.1], time)
 
     @property
     def mesh(self) -> 'MeshType':
