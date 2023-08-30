@@ -737,10 +737,14 @@ class TimeDependentStress(fe.UserExpression):
         self.stress_value = initial_value
 
     def eval(self, value, x):
-        value[0], value[1] = self.stress_value
+        value[0] = self.stress_value[0]
+        value[1] = self.stress_value[1]
 
     def update(self, new_value):
         self.stress_value = new_value
+
+    def value_shape(self):
+        return (2,)
 
 class StressElastoPlasticBnd(BaseElastoPlasticBnd):
     def __init__(self, simulation_config, V, initial_stress_value=None):
@@ -768,8 +772,8 @@ class StressElastoPlasticBnd(BaseElastoPlasticBnd):
         Args:
             new_stress_value (list): New stress values to be set.
         """
-        self.stress_value.assign(fe.Constant(new_stress_value))
+        self.stress_expression.update(new_stress_value)
 
     def get_stress_rhs(self, test_function):
         ds = fe.Measure('ds', domain=self.mesh, subdomain_data=self.boundary_markers)
-        return fe.dot(test_function, self.stress_value) * ds(1)
+        return fe.dot(test_function, self.stress_expression) * ds(1)
