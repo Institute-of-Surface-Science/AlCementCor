@@ -1,7 +1,7 @@
 import json
 import os
 from enum import Enum
-from typing import Any, Dict
+from typing import Any
 
 
 class Direction(Enum):

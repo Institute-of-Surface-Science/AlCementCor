@@ -1,14 +1,14 @@
-import ufl
+from enum import Enum
+
 import fenics as fe
 import numpy as np
-from typing import Any, Tuple, List
-from enum import Enum
+import ufl
+
 from AlCementCor.bnd import DisplacementElastoPlasticBnd, StressElastoPlasticBnd
 from AlCementCor.config import SimulationConfig
 from AlCementCor.fenics_helpers import as_3D_tensor, local_project, assign_values_based_on_boundaries
 from AlCementCor.material_model_config import LinearElastoPlasticConfig
 from AlCementCor.misc import check_divergence
-from AlCementCor.postproc import plot
 from AlCementCor.time_controller import PITimeController
 
 
@@ -365,7 +365,6 @@ class LinearElastoPlasticIntegrator:
     def _update_boundary_conditions(self):
         """Update boundary conditions based on the current time step."""
         self.model.update_bnd(self.time_step, self.time)
-
 
     def _update_model_values(self, plastic_strain_update: float):
         """Update model's internal values after a successful Newton-Raphson step."""

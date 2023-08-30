@@ -1,42 +1,42 @@
 {
-    "simulation_metadata": {
-        "title": "Material Stress Analysis",
-        "description": "Simulation parameters for a two-layer material stress analysis without field input file.",
-        "date": "2023-08-01",
-        "author": "Sven Berger"
+  "simulation_metadata": {
+    "title": "Material Stress Analysis",
+    "description": "Simulation parameters for a two-layer material stress analysis without field input file.",
+    "date": "2023-08-01",
+    "author": "Sven Berger"
+  },
+  "simulation_parameters": {
+    "use_two_material_layers": true,
+    "integration_time_limit": 175000,
+    "total_timesteps": 10000,
+    "field_input_file": null,
+    "output_folder": "out",
+    "output_file": "plasticity_results.xdmf",
+    "mesh_resolution": {
+      "x": 50,
+      "y": 100
     },
-    "simulation_parameters": {
-        "use_two_material_layers": true,
-        "integration_time_limit": 175000,
-        "total_timesteps": 10000,
-        "field_input_file": null,
-        "output_folder": "out",
-        "output_file": "plasticity_results.xdmf",
-        "mesh_resolution": {
-            "x": 50,
-            "y": 100
-        },
-        "constant_strain_rate": {
-            "x": null,
-            "y": 0.0001
-        },
-        "finite_element_degrees": {
-            "u": 2,
-            "stress": 2
-        }
+    "constant_strain_rate": {
+      "x": null,
+      "y": 0.0001
     },
-    "material_dimensions": {
-        "length": 90.0,
-        "width": 5.0
-    },
-    "material_model": {
-        "material": "Al6082-T6",
-        "hardening_model": "linear"
-    },
+    "finite_element_degrees": {
+      "u": 2,
+      "stress": 2
+    }
+  },
+  "material_dimensions": {
+    "length": 90.0,
+    "width": 5.0
+  },
+  "material_model": {
+    "material": "Al6082-T6",
+    "hardening_model": "linear"
+  },
   "boundary_conditions": {
     "left": "unset",
     "right": "unset",
-    "top":  {
+    "top": {
       "constant_strain_rate": {
         "strain_rate": 0.000001
       }

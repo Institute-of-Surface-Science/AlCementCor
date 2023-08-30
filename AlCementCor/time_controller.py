@@ -1,9 +1,11 @@
 from abc import ABC, abstractmethod
 
+
 class TimeController(ABC):
     """
     Base class for time controllers
     """
+
     def __init__(self, initial_time_step):
         self.time_step = initial_time_step
 
@@ -19,6 +21,7 @@ class BasicTimeController(TimeController):
     """
     Basic time controller that does not change the time step.
     """
+
     def update(self, error):
         """
         No time step change for BasicTimeController
@@ -30,6 +33,7 @@ class PITimeController(TimeController):
     """
     PI controller for time step adaptation
     """
+
     def __init__(self, initial_time_step, desired_norm_res, kp=0.1, ki=0.05, min_time_step=None, max_time_step=None):
         super().__init__(initial_time_step)
         self.desired_norm_res = desired_norm_res
@@ -49,4 +53,3 @@ class PITimeController(TimeController):
         self.time_step += delta_time_step
         self.time_step = max(min(self.time_step, self.max_time_step), self.min_time_step)  # clamp time step in a
         return self.time_step
-

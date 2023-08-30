@@ -1,8 +1,9 @@
 import json
+from enum import Enum
+
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.cluster import KMeans
-from enum import Enum
 
 
 class InputFileKeys(Enum):
@@ -139,7 +140,6 @@ def process_abaqus_input_file(filename, plot=False):
         log_strain_tensors.append(node_strain)
     log_strain_tensors = np.array(log_strain_tensors)
 
-
     # # Extract stress Tensors
     # stress_tensors = []
     # for node_id in node_data.keys():
@@ -201,14 +201,14 @@ def process_abaqus_input_file(filename, plot=False):
             displacement_increment = strain_increment * [x0, y0, z0] + displacement_t
             displacements.append(displacement_increment)
             displacement_t = displacement_increment  # Update cumulative displacement
-            if len(displacements_from_strain)+1 == 16:
+            if len(displacements_from_strain) + 1 == 16:
                 print("disp:", displacement_t, "strain ", strain_increment)
         displacements_from_strain.append(displacements)
 
     displacements_from_strain = np.array(displacements_from_strain)
 
     print(np.shape(displacements_from_strain))
-    print(displacements_from_strain[15,:,:])
+    print(displacements_from_strain[15, :, :])
 
     # Perform clustering to differentiate between inside and outside points
     kmeans = KMeans(n_clusters=2, random_state=0).fit(coordinates_0[:, :2])
@@ -299,9 +299,9 @@ def process_abaqus_input_file(filename, plot=False):
         # ExternalInput.DISPLACEMENTX.value: np.array(displacement_x),
         # ExternalInput.DISPLACEMENTY.value: np.array(displacement_y),
         # ExternalInput.DISPLACEMENTZ.value: np.array(displacement_z),
-        ExternalInput.DISPLACEMENTX.value: np.array(displacements_from_strain[:,:,0]),
-        ExternalInput.DISPLACEMENTY.value: np.array(displacements_from_strain[:,:,1]),
-        ExternalInput.DISPLACEMENTZ.value: np.array(displacements_from_strain[:,:,2]),
+        ExternalInput.DISPLACEMENTX.value: np.array(displacements_from_strain[:, :, 0]),
+        ExternalInput.DISPLACEMENTY.value: np.array(displacements_from_strain[:, :, 1]),
+        ExternalInput.DISPLACEMENTZ.value: np.array(displacements_from_strain[:, :, 2]),
         # ExternalInput.RELDISPLACEMENT.value: np.array(rel_displacement),
         ExternalInput.X.value: np.array(x_coordinates),
         ExternalInput.Y.value: np.array(y_coordinates),
@@ -312,6 +312,7 @@ def process_abaqus_input_file(filename, plot=False):
     })
 
     return loaded_vars
+
 
 def unpack_coordinates(input_file):
     return input_file[ExternalInput.X.value], input_file[ExternalInput.Y.value], input_file[ExternalInput.Z.value]

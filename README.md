@@ -23,7 +23,7 @@ sudo apt-get install -y dolfin-bin libdolfin-dev libdolfin-dev-common libdolfin2
 
 ## Getting Started
 
-1. **Clone the repository:** 
+1. **Clone the repository:**
 
 ```sh
 git clone https://github.com/Institute-of-Surface-Science/AlCementCor.git
@@ -43,11 +43,14 @@ python main.py
 
 ## Customizing the Simulation
 
-You can customize your simulations by modifying the simulation configuration files and specifying different material properties and behaviours.
+You can customize your simulations by modifying the simulation configuration files and specifying different material
+properties and behaviours.
 
-1. **Material Properties:** Specify the properties of the material you wish to simulate in the `material_properties.json` file.
+1. **Material Properties:** Specify the properties of the material you wish to simulate in
+   the `material_properties.json` file.
 
-2. **Simulation Configuration:** Adjust various parameters for the simulation in the `simulation_config.json` file. You can also use setters for some properties.
+2. **Simulation Configuration:** Adjust various parameters for the simulation in the `simulation_config.json` file. You
+   can also use setters for some properties.
 
 ## Documentation
 
@@ -90,19 +93,21 @@ Each material has a unique identifier (like `Al6082-T6`, `Aluminium-Ceramic`) wh
 For `Al6082-T6`:
 
 - **Metadata**
-  - **Material Name**: Aluminium 6082-T6
-  - **Composition**: Aluminium: 97.4%, Magnesium: 1.2%, Silicon: 1.0%, Iron: 0.5%, Copper: 0.2%, Manganese: 0.6%, Chromium: 0.25%, Zinc: 0.2%, Titanium: 0.1%
-  - **Source**: Unknown
-  - **Remarks**: No additional remarks.
+    - **Material Name**: Aluminium 6082-T6
+    - **Composition**: Aluminium: 97.4%, Magnesium: 1.2%, Silicon: 1.0%, Iron: 0.5%, Copper: 0.2%, Manganese: 0.6%,
+      Chromium: 0.25%, Zinc: 0.2%, Titanium: 0.1%
+    - **Source**: Unknown
+    - **Remarks**: No additional remarks.
 
 - **Properties**
-  - **Young's Modulus**: 71000
-  - **Poisson's Ratio**: 0.3
-  - ... (and so on for other properties)
+    - **Young's Modulus**: 71000
+    - **Poisson's Ratio**: 0.3
+    - ... (and so on for other properties)
 
 ## Contributing
 
-We welcome contributions to this repository. If you wish to contribute, please follow the standard Fork & Pull Request workflow.
+We welcome contributions to this repository. If you wish to contribute, please follow the standard Fork & Pull Request
+workflow.
 
 ## License
 

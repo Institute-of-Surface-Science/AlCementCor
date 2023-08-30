@@ -1,8 +1,10 @@
-from AlCementCor.input_file import ExternalInput
 import matplotlib.pyplot as plt
 import matplotlib.tri as tri
-from matplotlib.lines import Line2D
 import numpy as np
+from matplotlib.lines import Line2D
+
+from AlCementCor.input_file import ExternalInput
+
 
 def plot_strain_displacement(result):
     displacement_x = result[ExternalInput.DISPLACEMENTX.value]
@@ -71,6 +73,7 @@ def plot_movement(coordinates_on_center_plane, displacement_x_center, displaceme
     plt.axis('equal')  # This ensures that the lengths of the arrows are proportional
     plt.savefig("movement_center.png")
 
+
 def plot_displacement(displacement_x_center, displacement_y_center):
     timesteps = range(len(displacement_x_center[0]))  # assuming all nodes have the same number of timesteps
 
@@ -95,6 +98,7 @@ def plot_displacement(displacement_x_center, displacement_y_center):
 
     plt.tight_layout()
     plt.savefig("disp_center.png")
+
 
 def plot(iteration, u, sig_eq_p, title="Von-Mises Stress and Deformation", cbar_label="Von-Mises Stress",
          cmap="viridis", quiver_steps=5):
@@ -177,7 +181,6 @@ def plot(iteration, u, sig_eq_p, title="Von-Mises Stress and Deformation", cbar_
 
     plt.savefig("vm" + str(iteration) + ".png", dpi=300)
     plt.close()
-
 
 # ax = fe.plot(u, mode="displacement")
 # cbar = plt.colorbar(ax)

@@ -1,6 +1,5 @@
-import numpy as np
-import ufl
 import fenics as fe
+import numpy as np
 
 from AlCementCor.config import SimulationConfig
 from AlCementCor.input_file import process_abaqus_input_file, ExternalInput

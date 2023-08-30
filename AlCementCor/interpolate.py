@@ -1,6 +1,6 @@
 import numpy as np
-from scipy.interpolate import griddata, RegularGridInterpolator, interp1d
 from scipy.interpolate import LinearNDInterpolator
+from scipy.interpolate import griddata, RegularGridInterpolator, interp1d
 
 
 def interpolate_values(coordinates, values, new_coordinates):

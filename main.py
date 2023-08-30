@@ -1,7 +1,6 @@
-import ufl
-import fenics as fe
-import warnings
 import argparse
+import warnings
+
 from ffc.quadrature.deprecation import QuadratureRepresentationDeprecationWarning
 
 from AlCementCor.info import *
@@ -117,4 +116,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

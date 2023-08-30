@@ -1,8 +1,9 @@
-import inspect
-import os
 import argparse
-from tabulate import tabulate
+import os
 from typing import List
+
+from tabulate import tabulate
+
 from AlCementCor.config import SimulationConfig
 from AlCementCor.material_properties import MaterialProperties
 
@@ -12,6 +13,7 @@ class PreserveWhiteSpaceArgParseFormatter(argparse.HelpFormatter):
         # Preserves white spaces in the input text
         lines = text.splitlines()
         return "\n".join(lines)
+
 
 def logo():
     logo = """

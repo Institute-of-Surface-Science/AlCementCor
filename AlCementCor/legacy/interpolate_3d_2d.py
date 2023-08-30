@@ -1,16 +1,13 @@
-from input_file import process_input_tensors
+import math
+
 # from interpolate import interpolate_values
 import numpy as np
-from matplotlib import pyplot as plt
-from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-from sklearn.cluster import KMeans
 from input_file import ExternalInput
-import math
+from input_file import process_input_tensors
 
 
 def interpolate_3d_2d():
-
-    loaded_vars =  process_input_tensors('../CementOutput.json')
+    loaded_vars = process_input_tensors('../CementOutput.json')
 
     x_coords = loaded_vars['X']
     y_coords = loaded_vars['Y']
@@ -24,7 +21,6 @@ def interpolate_3d_2d():
 
     # for key, value in loaded_vars.items():
     #     print(f"{key}")
-
 
     group1 = loaded_vars[ExternalInput.OUTSIDE_P]
     group2 = loaded_vars[ExternalInput.INSIDE_P]
@@ -65,14 +61,13 @@ def interpolate_3d_2d():
     # inteprolated_disp = np.linspace(sel_disp1, sel_disp2, num_int_pts)
     # ax.scatter(interpolated_points[:, 0], interpolated_points[:, 1], interpolated_points[:, 2], c='g', s=10)
 
-
     # group = np.r_[group1, group2]
     # x_min, x_max = np.min(group1[:, 0]), np.max(group[:, 0])
     # y_min, y_max = np.min(group1[:, 1]), np.max(group[:, 1])
 
     # plt.show()
 
-    distance = math.sqrt((sel_pt2[0] - sel_pt1[0])**2 + (sel_pt2[1] - sel_pt1[1])**2)
+    distance = math.sqrt((sel_pt2[0] - sel_pt1[0]) ** 2 + (sel_pt2[1] - sel_pt1[1]) ** 2)
 
     return distance, sel_disp1, sel_disp2
 
