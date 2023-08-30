@@ -194,6 +194,7 @@ def ppos(x):
     """
     return (x + abs(x)) / 2.
 
+
 class HardeningModel(Enum):
     LINEAR = 'linear'
     LUDWIK = 'ludwik'
@@ -276,7 +277,8 @@ def compute_hardening(plastic_strain: float, initial_stress: float, hardening_pa
     return flow_stress, stress_derivative
 
 
-def project_stress(incremental_strain, previous_stress, shear_modulus, lambda_DG, mu_DG, yield_stress, hardening_derivative):
+def project_stress(incremental_strain, previous_stress, shear_modulus, lambda_DG, mu_DG, yield_stress,
+                   hardening_derivative):
     """
     Return-mapping algorithm for elastoplasticity, which projects trial stresses back to the yield surface
     in case of plastic deformation. The method is essential for numerical stability and accuracy in
@@ -332,12 +334,10 @@ def project_stress(incremental_strain, previous_stress, shear_modulus, lambda_DG
     # Hydrostatic (volumetric) stress component represents the uniform compression or dilation in the material.
     volumetric_stress = (1. / 3) * fe.tr(corrected_stress)
 
-    return fe.as_vector([corrected_stress[0, 0], corrected_stress[1, 1], corrected_stress[2, 2], corrected_stress[0, 1]]), \
-           fe.as_vector([yield_normal[0, 0], yield_normal[1, 1], yield_normal[2, 2], yield_normal[0, 1]]), \
-           radial_return_factor, plastic_strain_increment, volumetric_stress
-
-
-
+    return fe.as_vector(
+        [corrected_stress[0, 0], corrected_stress[1, 1], corrected_stress[2, 2], corrected_stress[0, 1]]), \
+        fe.as_vector([yield_normal[0, 0], yield_normal[1, 1], yield_normal[2, 2], yield_normal[0, 1]]), \
+        radial_return_factor, plastic_strain_increment, volumetric_stress
 
 
 class LinearElastoPlasticIntegrator:
@@ -371,8 +371,7 @@ class LinearElastoPlasticIntegrator:
         for condition in self.model.boundary.conditions:
             condition.update_time(self.time_step)
 
-        self.model.stress_bnd.update_stress_value([0.0, self.time*0.1], self.time)
-
+        self.model.stress_bnd.update_stress_value([0.0, self.time * 0.1], self.time)
 
     def _update_model_values(self, plastic_strain_update: float):
         """Update model's internal values after a successful Newton-Raphson step."""
@@ -526,7 +525,6 @@ class LinearElastoPlasticModel:
         self._setup_other_functions()
         self._setup_local_properties()
 
-
     def _setup_function_spaces(self) -> None:
         """Set up the function spaces required for the simulation."""
         mesh_cell = self._mesh.ufl_cell()
@@ -608,7 +606,8 @@ class LinearElastoPlasticModel:
                                                              self.local_linear_hardening_DG, self.beta,
                                                              self.lmbda_local_DG)) * self.dxm
 
-        stress_rhs = self.stress_bnd.get_stress_rhs( self.u_)  # Assuming self.boundary_conditions is an instance of LinearElastoPlasticBnd
+        stress_rhs = self.stress_bnd.get_stress_rhs(
+            self.u_)  # Assuming self.boundary_conditions is an instance of LinearElastoPlasticBnd
         self.newton_rhs = (-fe.inner(compute_strain_tensor(self.u_), as_3D_tensor(self.stress)) * self.dxm
                            + stress_rhs)
 
@@ -642,6 +641,3 @@ class LinearElastoPlasticModel:
     @property
     def layer_properties(self):
         return self.model_config.layer_properties
-
-
-
