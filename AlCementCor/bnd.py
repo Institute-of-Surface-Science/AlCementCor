@@ -126,8 +126,10 @@ class SquareStrainRate(fe.UserExpression):
 
     def eval(self, values, x):
         # linearly increasing displacement in the x-direction with respect to time and x-coordinate
-        values[0] = self.time * self.strain_rateX * ((1.0-self.min_disp) * (1.0 - (2.0/(self.end - self.start) * (x[1]-self.start)-1)**2) + self.min_disp)
-        values[1] = self.time * self.strain_rateY * (1.0 - (2.0/(self.end - self.start) * (x[0]-self.start)-1)**2)
+        values[0] = self.time * self.strain_rateX * ((1.0 - self.min_disp) * (
+                    1.0 - (2.0 / (self.end - self.start) * (x[1] - self.start) - 1) ** 2) + self.min_disp)
+        values[1] = self.time * self.strain_rateY * (
+                    1.0 - (2.0 / (self.end - self.start) * (x[0] - self.start) - 1) ** 2)
 
     def update_time(self, time_step):
         self.time = time_step
@@ -189,14 +191,31 @@ class SinglePointDisplacement(fe.UserExpression):
             values[0] = self.time * self.strain_rateX
             values[1] = self.time * self.strain_rateY
         elif self.time < 10.0:
-            values[0] = self.time * self.strain_rateX * ((6.0 - distance)/6.0)**7
-            values[1] = self.time * self.strain_rateY * ((6.0 - distance)/6.0)**7
+            values[0] = self.time * self.strain_rateX * ((6.0 - distance) / 6.0) ** 7
+            values[1] = self.time * self.strain_rateY * ((6.0 - distance) / 6.0) ** 7
 
     def update_time(self, time_step):
         self.time = time_step
 
     def value_shape(self):
         return (2,)
+
+
+class TimeDependentStress(fe.UserExpression):
+    def __init__(self, initial_value, **kwargs):
+        super().__init__(**kwargs)
+        self.stress_value = initial_value
+
+    def eval(self, value, x):
+        value[0] = self.stress_value[0]
+        value[1] = self.stress_value[1]
+
+    def update(self, new_value):
+        self.stress_value = new_value
+
+    def value_shape(self):
+        return (2,)
+
 
 class BaseElastoPlasticBnd:
     def __init__(self, simulation_config: "LinearElastoPlasticConfig", V: Any) -> None:
@@ -234,6 +253,7 @@ class BaseElastoPlasticBnd:
             return on_boundary and fe.near(x[0], l_x)
 
         return is_right_boundary
+
 
 class DisplacementElastoPlasticBnd(BaseElastoPlasticBnd):
     def __init__(self, simulation_config, V):
@@ -281,20 +301,6 @@ class DisplacementElastoPlasticBnd(BaseElastoPlasticBnd):
 
         return bc, bc_iter, conditions
 
-class TimeDependentStress(fe.UserExpression):
-    def __init__(self, initial_value, **kwargs):
-        super().__init__(**kwargs)
-        self.stress_value = initial_value
-
-    def eval(self, value, x):
-        value[0] = self.stress_value[0]
-        value[1] = self.stress_value[1]
-
-    def update(self, new_value):
-        self.stress_value = new_value
-
-    def value_shape(self):
-        return (2,)
 
 class StressElastoPlasticBnd(BaseElastoPlasticBnd):
     def __init__(self, simulation_config, V, initial_stress_value=None):
