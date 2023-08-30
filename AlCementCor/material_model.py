@@ -731,13 +731,24 @@ class DisplacementElastoPlasticBnd(BaseElastoPlasticBnd):
 
         return bc, bc_iter, conditions
 
+class TimeDependentStress(fe.UserExpression):
+    def __init__(self, initial_value, **kwargs):
+        super().__init__(**kwargs)
+        self.stress_value = initial_value
+
+    def eval(self, value, x):
+        value[0], value[1] = self.stress_value
+
+    def update(self, new_value):
+        self.stress_value = new_value
+
 class StressElastoPlasticBnd(BaseElastoPlasticBnd):
     def __init__(self, simulation_config, V, initial_stress_value=None):
         super().__init__(simulation_config, V)
         if initial_stress_value is None:
             initial_stress_value = [0.0, 0.1]
         self.boundary_markers = None
-        self.stress_value = fe.Constant(initial_stress_value)
+        self.stress_expression = TimeDependentStress(initial_stress_value, degree=0)
         self.setup_stress_bnd()
 
     def setup_stress_bnd(self)-> None:
